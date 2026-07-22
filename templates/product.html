@@ -169,20 +169,27 @@
 
       <div id="buyAnchor">
           <!-- Buttons row: qty + add-to-cart + buy-now, side by side on mobile -->
-          <div class="buy-buttons-row" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1.25rem; flex-wrap:nowrap;">
-            <div class="qty-selector" style="flex-shrink:0;">
-              <button type="button" onclick="var inp=this.nextElementSibling; inp.stepDown(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Decrease quantity" {% if sold_out %}disabled{% endif %}>−</button>
-              <input type="number" name="qty_visible" value="1" min="1" max="99" aria-label="Quantity" {% if sold_out %}disabled{% endif %} onchange="var h=this.closest('.buy-buttons-row').querySelector('.buy-row-qty'); if(h)h.value=this.value;">
-              <button type="button" onclick="var inp=this.previousElementSibling; inp.stepUp(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Increase quantity" {% if sold_out %}disabled{% endif %}>+</button>
-            </div>
-            <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="flex:1; min-width:0;">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="product_id" value="{{ product.id }}">
-              <input type="hidden" name="quantity" value="1" class="buy-row-qty">
-              <button type="submit" class="btn btn--outline" style="width:100%;" {% if sold_out %}disabled{% endif %}>{% if sold_out %}Sold Out{% else %}Add to Cart{% endif %}</button>
-            </form>
-            <button class="btn" id="buyBtn" style="flex:1; min-width:0;" data-base-price="{{ product.price }}" data-currency="{{ settings.currency_symbol }}"
-                    {% if checkout_available and not sold_out %}onclick="startCheckout({{ product.id }}, '{{ product.name|e }}')"{% else %}disabled{% endif %}>
+          <style>
+          @media (max-width:720px) {
+            .buy-buttons-row .btn { font-size:0.78rem !important; padding:0.6rem 0.4rem !important; min-height:40px !important; white-space:nowrap !important; }
+            .buy-buttons-row .qty-selector input { width:2rem !important; }
+            .buy-buttons-row .qty-selector button { width:30px !important; height:30px !important; font-size:1rem !important; }
+          }
+          </style>
+          <div class="buy-buttons-row" style="display:flex !important; gap:0.5rem !important; align-items:center !important; margin-bottom:1.25rem !important; flex-wrap:nowrap !important;">
+            <div class="qty-selector" style="flex-shrink:0 !important;">
+                <button type="button" onclick="var inp=this.nextElementSibling; inp.stepDown(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Decrease quantity" {% if sold_out %}disabled{% endif %}>−</button>
+                <input type="number" name="qty_visible" value="1" min="1" max="99" aria-label="Quantity" {% if sold_out %}disabled{% endif %} onchange="var h=this.closest('.buy-buttons-row').querySelector('.buy-row-qty'); if(h)h.value=this.value;">
+                <button type="button" onclick="var inp=this.previousElementSibling; inp.stepUp(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Increase quantity" {% if sold_out %}disabled{% endif %}>+</button>
+              </div>
+              <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="flex:1 !important; min-width:0 !important;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="product_id" value="{{ product.id }}">
+                <input type="hidden" name="quantity" value="1" class="buy-row-qty">
+                <button type="submit" class="btn btn--outline" style="width:100% !important;" {% if sold_out %}disabled{% endif %}>{% if sold_out %}Sold Out{% else %}Add to Cart{% endif %}</button>
+              </form>
+              <button class="btn" id="buyBtn" style="flex:1 !important; min-width:0 !important;" data-base-price="{{ product.price }}" data-currency="{{ settings.currency_symbol }}"
+                      {% if checkout_available and not sold_out %}onclick="startCheckout({{ product.id }}, '{{ product.name|e }}')"{% else %}disabled{% endif %}>
               {% if sold_out %}Sold Out{% elif checkout_available %}{% if not test_checkout_mode %}Buy Now{% else %}Test Order{% endif %}{% else %}Disabled{% endif %}
               </button>
           </div>
