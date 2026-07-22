@@ -630,7 +630,7 @@ function toggleWishlistHeart(btn) {
 
 <script nonce="{{ csp_nonce }}">
 // Morphing liquid glass — mobile buy bar merge/split
-(function(){
+document.addEventListener('DOMContentLoaded',function(){
 var buyRow=document.getElementById('buyButtonsRow');
 var buyAnchor=document.getElementById('buyAnchor');
 var nav=document.getElementById('bottomNav');
@@ -765,7 +765,7 @@ buyAnchor.className='buy-anchor--solid';
 setTimeout(function(){icd=true;cs();},300);
 
 window.addEventListener('beforeunload',function(){ca();try{if(window.__morphOb)window.__morphOb.disconnect();}catch(e){}});
-})();
+});
 </script>
 
 <script nonce="{{ csp_nonce }}">
