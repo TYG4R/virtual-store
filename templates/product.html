@@ -68,7 +68,7 @@
     <div class="product-gallery reveal">
       <div class="product-gallery__main" id="productGalleryMain">
         {% if images %}
-          <img id="mainImage" src="{{ url_for('uploaded_file', filename=images[0]) }}" alt="{{ product.name }}" width="600" height="750">
+          <img id="mainImage" src="{{ url_for('uploaded_file', filename=images[0]) }}" alt="{{ product.name }}" width="600" height="750" fetchpriority="high">
           {% if product.png_thumbnail is defined and product.png_thumbnail %}
           <img class="png-layer" id="pngLayer" src="{{ url_for('uploaded_file', filename=product.png_thumbnail) }}" alt="{{ product.name }} overlay" loading="lazy">
           {% endif %}
@@ -784,7 +784,7 @@ var observer = new IntersectionObserver(function(entries) {
   entries.forEach(function(entry) {
     if (entry.target === buyAnchor) {
       // When buyAnchor exits viewport from bottom → merge
-      if (!entry.isIntersecting && entry.boundingClientRect.bottom < 0) {
+      if (!entry.isIntersecting && entry.boundingClientRect.top < window.innerHeight) {
         expand();
       }
       // When buyAnchor re-enters → split

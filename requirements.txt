@@ -13,3 +13,4 @@ twilio==9.3.6
 pyotp==2.9.0
 libsql==0.1.11
 fpdf2==2.8.2
+flask-compress==1.15

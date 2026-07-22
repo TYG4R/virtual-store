@@ -140,6 +140,8 @@ def fetch_calendarific_holidays(year=None, force=False):
     return result
 
 app = Flask(__name__)
+from flask_compress import Compress
+Compress(app)
 # Trust Render's proxy headers for correct scheme (HSTS), remote_addr (rate
 # limiting), and host detection. x_for=1 trusts the leftmost X-Forwarded-For,
 # x_proto=1 trusts the leftmost X-Forwarded-Proto (https flag from Render's LB).
