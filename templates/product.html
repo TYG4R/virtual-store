@@ -631,18 +631,18 @@ function toggleWishlistHeart(btn) {
 <script nonce="{{ csp_nonce }}">
 // Morphing liquid glass — mobile buy bar merge/split
 document.addEventListener('DOMContentLoaded',function(){
-var buyRow=document.getElementById('buyButtonsRow');
 var buyAnchor=document.getElementById('buyAnchor');
+var buyRow=document.getElementById('buyButtonsRow');
 var nav=document.getElementById('bottomNav');
 var tray=document.getElementById('bottomNavBuyTray');
-var backTop=document.getElementById('backToTop');
-if(!buyRow||!nav||!tray){
+var section=document.getElementById('productDetail');
+if(!buyRow||!nav||!tray||!section){
 var d=document.getElementById('morphDebug');
 if(d)d.textContent='init fail';
 return;
 }
 
-// Tray buttons
+// Tray clone buttons
 var f=buyRow.querySelector('.add-to-cart-form');
 if(f){
  var tf=f.cloneNode(true);
@@ -660,7 +660,7 @@ if(bb&&!bb.disabled){
  tray.appendChild(tb2);
 }
 
-// SVG clipPath
+// SVG clipPath setup
 (function(){
  var old=document.getElementById('navMorphClipDefs');
  if(old)old.remove();
@@ -681,15 +681,15 @@ if(bb&&!bb.disabled){
  window.__morphPath=pth;
 })();
 
+var rm=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+var exp=false,raf=null,cooldown=0;
+
 function up(bd){
  var vw=window.innerWidth;
  var th=nav.getBoundingClientRect().height+56;
  var d='M0,4 Q'+(vw/2)+','+(4-bd)+' '+vw+',4 L'+vw+','+th+' L0,'+th+' Z';
  window.__morphPath.setAttribute('d',d);
 }
-
-var rm=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-var exp=false,animating=false,raf=null;
 
 function anim(fr,to,du,cb){
  if(rm){up(to);if(cb)cb();return;}
@@ -700,67 +700,59 @@ var t=Math.min((ts-st)/du,1);
 var e=t<0.5?2*t*t:-1+(4-2*t)*t;
 up(fr+(to-fr)*e);
 if(t<1)raf=requestAnimationFrame(fk);
-else{animating=false;up(to);if(cb)cb();}
+else{raf=null;up(to);if(cb)cb();}
  }
- animating=true;
  raf=requestAnimationFrame(fk);
 }
-function ca(){if(raf){cancelAnimationFrame(raf);raf=null;}animating=false;}
+function ca(){if(raf){cancelAnimationFrame(raf);raf=null;}}
 
 function dbg(t){var d=document.getElementById('morphDebug');if(d)d.textContent=t;}
 dbg('ok');
 
-function doExpand(){
- if(exp||animating)return;exp=true;dbg('expand');
- nav.classList.add('bottom-nav--expanded');
- if(!rm)buyAnchor.className='buy-anchor--dissolving';
- anim(4,28,350);
-}
-function doCollapse(){
- if(!exp||animating)return;exp=false;dbg('collapse');
- nav.classList.remove('bottom-nav--expanded');
- if(!rm)buyAnchor.className='buy-anchor--solid';
- anim(28,4,250,function(){if(!rm)buyAnchor.className='buy-anchor--solid';up(4);});
-}
-
-var lsy=window.scrollY;
-try{
- var ob=new IntersectionObserver(function(es){
-  es.forEach(function(e){
-   if(e.target!==buyRow)return;
-   var sd=window.scrollY>lsy;lsy=window.scrollY;
-   dbg('obs:in='+e.isIntersecting+' sd='+sd);
-   if(!e.isIntersecting&&sd)doExpand();
-   else if(e.isIntersecting&&!sd)doCollapse();
-  });
- },{threshold:[0],rootMargin:'0px 0px '+(nav.offsetHeight+10)+'px 0px'});
- ob.observe(buyRow);
- window.__morphOb=ob;
-}catch(e){}
-
-window.addEventListener('scroll',function(){
- if(!exp&&!animating)return; // scroll fallback only guards against observer misses
- var r=buyRow.getBoundingClientRect();
- var n=nav.getBoundingClientRect();
- if(r.bottom<n.top-5)doExpand();
- else if(exp&&r.top>n.bottom+5){
-  ca(); // kill any running anim
-  doCollapse();
+var prevSb=0;
+function tick(){
+ var ts=Date.now();
+ if(ts<cooldown)return;
+ var ab=buyAnchor.getBoundingClientRect().bottom;
+ var nb=nav.getBoundingClientRect().top;
+ var sb=section.getBoundingClientRect().bottom;
+ 
+ if(exp){
+   // Collapse: scrolled past product section (section bottom above nav)
+   // OR scrolled back up past buy buttons (anchor bottom below nav)
+   if((sb<nb-10&&prevSb-sb>40)||(ab>nb+100)){
+    ca();exp=false;cooldown=ts+400;
+    prevSb=0;
+    nav.classList.remove('bottom-nav--expanded');
+    if(!rm)buyAnchor.className='buy-anchor--solid';
+    anim(28,4,250);
+    dbg('coll');
+   }
+ }else{
+  // Collapse → expand: buy anchor bottom above nav top, section still visible
+  // Guard: require sb to still be visible (haven't scrolled past section)
+  if(ab<nb+60&&sb>nb-30){
+   ca();exp=true;cooldown=ts+400;
+   prevSb=sb;
+   nav.classList.add('bottom-nav--expanded');
+   if(!rm)buyAnchor.className='buy-anchor--dissolving';
+   anim(4,28,350);
+   dbg('exp');
+  }
  }
-},{passive:true});
-window.addEventListener('resize',function(){
- if(!exp)return;
- up(28);
-},{passive:true});
-
-if(backTop){
- backTop.onclick=function(e){e.preventDefault();buyRow.scrollIntoView({behavior:'smooth',block:'center'});};
 }
+
+var stk=null;
+function stkTick(){if(stk)cancelAnimationFrame(stk);stk=requestAnimationFrame(tick);}
+window.addEventListener('scroll',stkTick,{passive:true});
+window.addEventListener('resize',function(){
+ if(exp)up(28);
+},{passive:true});
 
 up(4);
 buyAnchor.className='buy-anchor--solid';
 
-window.addEventListener('beforeunload',function(){ca();try{if(window.__morphOb)window.__morphOb.disconnect();}catch(e){}});
+window.addEventListener('beforeunload',function(){ca();});
 });
 </script>
 
