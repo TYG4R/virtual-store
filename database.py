@@ -304,6 +304,9 @@ MIGRATIONS = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_google_uid ON customers(google_uid)",
     # ---- Session token version for "Sign out everywhere" ----
     "ALTER TABLE customers ADD COLUMN session_token_version INTEGER NOT NULL DEFAULT 0",
+    # ---- Ticket reply attachments ----
+    "ALTER TABLE admin_ticket_replies ADD COLUMN attachment_name TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE admin_ticket_replies ADD COLUMN attachment_path TEXT NOT NULL DEFAULT ''",
 ]
 
 SCHEMA_EXTRA = """
@@ -453,6 +456,16 @@ SCHEMA_EXTRA = """
       admin_note  TEXT DEFAULT '',
       created_at  TEXT NOT NULL,
       resolved_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS admin_ticket_replies (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticket_id       INTEGER NOT NULL REFERENCES admin_tickets(id) ON DELETE CASCADE,
+      admin_id        INTEGER REFERENCES admin_users(id),
+      reply_text      TEXT NOT NULL DEFAULT '',
+      attachment_name TEXT NOT NULL DEFAULT '',
+      attachment_path TEXT NOT NULL DEFAULT '',
+      created_at      TEXT NOT NULL
   );
 """
 

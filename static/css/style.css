@@ -40,7 +40,6 @@
 .quick-view-overlay,
 .product-share-overlay,
 #easter-egg-overlay,
-.easter-egg__text,
 .admin-image-preview,
 .image-upload-modal {
   overflow: hidden;
@@ -52,7 +51,6 @@
 .quick-view-overlay::before,
 .product-share-overlay::before,
 #easter-egg-overlay::before,
-.easter-egg__text::before,
 .admin-image-preview::before,
 .image-upload-modal::before {
   content: '';
@@ -617,7 +615,14 @@ p { margin: 0 0 1em; color: var(--grey-700); }
 .footer__col .eyebrow { margin-bottom: 0.3rem; }
 .footer__col a { color: var(--grey-700); transition: color 0.2s; }
 .footer__col a:hover { color: var(--black); }
-.footer__bottom { display: flex; justify-content: space-between; padding-top: 2rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--grey-500); flex-wrap: wrap; gap: 0.5rem; }
+.footer__bottom { display: flex; justify-content: space-between; align-items: center; padding-top: 2rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--grey-500); flex-wrap: wrap; gap: 0.5rem; }
+.footer__currency { display: inline-flex; align-items: center; gap: 0.4rem; }
+.footer__currency-label { font-size: 0.78rem; color: var(--grey-400); white-space: nowrap; }
+.footer__currency-select {
+  padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text); font-size: 0.8rem;
+  cursor: pointer; font-family: var(--sans);
+}
 @media (max-width: 760px) {
   .footer__grid { grid-template-columns: 1fr 1fr; gap: 2rem; }
   .footer__brand { grid-column: 1 / -1; }
@@ -2726,55 +2731,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
    Easter egg — "created with love, by harshit"
    Trigger: type the Konami code (↑↑↓↓←→←→ba) anywhere
    ============================================================ */
-#easter-egg-overlay {
-  display: none;
-  position: fixed; inset: 0; z-index: 99999;
-  background: transparent;
-  align-items: center; justify-content: center; flex-direction: column;
-  gap: 1.2rem;
-  cursor: pointer;
-  overflow: hidden;
-}
-#easter-egg-overlay.ee-show {
-  display: flex;
-  animation: eeFadeIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-@keyframes eeFadeIn {
-  from { opacity: 0; transform: scale(0.88); }
-  to   { opacity: 1; transform: scale(1); }
-}
-.ee-heart {
-  font-size: 3rem;
-  animation: eePulse 1.2s ease-in-out infinite;
-  display: inline-block;
-  filter: drop-shadow(0 0 18px rgba(255,80,120,0.7));
-}
-@keyframes eePulse {
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.18); }
-}
-.ee-text {
-  font-family: var(--serif); font-size: clamp(1.4rem, 4vw, 2.2rem);
-  letter-spacing: 0.03em; text-align: center; line-height: 1.4;
-  background: linear-gradient(
-    120deg,
-    #ffffff 0%,
-    #ffd6e7 25%,
-    #ffffff 50%,
-    #ffd6e7 75%,
-    #ffffff 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: shineSweep 3s ease-in-out infinite;
-}
-.ee-sub {
-  font-family: var(--sans); font-size: 0.78rem;
-  color: rgba(255,255,255,0.35); letter-spacing: 0.12em;
-  text-transform: uppercase; margin-top: 0.4rem;
-}
+#easter-egg-overlay { display: none; }
 
 /* ─── Page fade-in on every navigation ─── */
 @keyframes pageFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

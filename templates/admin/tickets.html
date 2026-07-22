@@ -22,11 +22,13 @@
           <th>Status</th>
           {% if is_master %}<th>Creator</th>{% endif %}
           <th>Created</th>
+          <th>Replies</th>
           {% if is_master %}<th>Actions</th>{% endif %}
         </tr>
       </thead>
       <tbody>
         {% for ticket in tickets %}
+        {% set reply_count = replies_map.get(ticket.id, [])|length %}
         <tr class="ticket-row" onclick="toggleTicketDetails({{ ticket.id }})">
           <td>{{ ticket.id }}</td>
           <td>{{ ticket.title }}</td>
@@ -42,6 +44,7 @@
           </td>
           {% if is_master %}<td>{{ ticket.creator_name or 'Unknown' }}</td>{% endif %}
           <td class="text-sm text-muted">{{ ticket.created_at[:10] }}</td>
+          <td class="text-sm text-muted">{{ reply_count }}</td>
           {% if is_master %}
           <td>
             <button class="btn btn--sm" onclick="event.stopPropagation(); toggleTicketDetails({{ ticket.id }})">
@@ -51,7 +54,7 @@
           {% endif %}
         </tr>
         <tr id="ticket-details-{{ ticket.id }}" class="ticket-details-row" style="display:none;">
-          <td colspan="{% if is_master %}7{% else %}5{% endif %}">
+          <td colspan="{% if is_master %}8{% else %}6{% endif %}">
             <div class="ticket-details">
               <div class="ticket-details__description">
                 <strong>Description:</strong>
@@ -92,6 +95,53 @@
                 </div>
                 {% endif %}
               {% endif %}
+
+              <!-- Conversation thread: replies -->
+              {% set replies = replies_map.get(ticket.id, []) %}
+              {% if replies %}
+              <div class="ticket-replies">
+                <strong>Conversation Thread:</strong>
+                {% for reply in replies %}
+                <div class="ticket-reply {% if reply.admin_id %}ticket-reply--admin{% else %}ticket-reply--subadmin{% endif %}">
+                  <div class="ticket-reply__header">
+                    <span class="ticket-reply__author">
+                      {% if reply.admin_id %}
+                        {% if is_master %}{{ reply.replier_name or 'Master' }}{% else %}Admin{% endif %}
+                        <span class="ticket-reply__badge">Staff</span>
+                      {% else %}
+                        Sub-admin
+                      {% endif %}
+                    </span>
+                    <span class="ticket-reply__time">{{ reply.created_at[:16].replace('T', ' ') }}</span>
+                  </div>
+                  <div class="ticket-reply__body">{{ reply.reply_text }}</div>
+                  {% if reply.attachment_name and reply.attachment_path %}
+                  <div class="ticket-reply__attachment">
+                    <a href="{{ url_for('uploaded_file', filename=reply.attachment_path) }}" target="_blank" class="btn btn--sm btn--outline">
+                      📎 {{ reply.attachment_name }}
+                    </a>
+                  </div>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+
+              <!-- Reply form (both master and sub-admins) -->
+              <form method="POST" action="{{ url_for('admin_tickets_reply', ticket_id=ticket.id) }}" class="ticket-reply-form" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                  <label for="reply-{{ ticket.id }}">Add a Reply</label>
+                  <textarea name="reply_text" id="reply-{{ ticket.id }}" class="form-input" rows="2" placeholder="Type your reply..." required></textarea>
+                </div>
+                <div class="form-row form-row--sm">
+                  <div class="form-group form-group--grow">
+                    <input type="file" name="attachment" id="attachment-{{ ticket.id }}" class="form-input form-input--file" accept="image/*,.pdf,.zip,.doc,.docx,.txt">
+                    <label for="attachment-{{ ticket.id }}" class="file-label">Attach file (optional)</label>
+                  </div>
+                  <button type="submit" class="btn btn--primary btn--sm">Send Reply</button>
+                </div>
+              </form>
 
               <div class="ticket-details__meta text-sm text-muted">
                 <span>Created: {{ ticket.created_at[:16].replace('T', ' ') }}</span>
@@ -153,7 +203,6 @@
   </div>
 </div>
 
-
 <style>
 /* Admin ticket modal readability */
 .modal { position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center; }
@@ -174,7 +223,37 @@
 .modal__content .form-input:focus { outline:none;border-color:var(--accent,#f5a623); }
 .ticket-row { cursor: pointer; }
 
+/* Ticket replies thread */
+.ticket-replies { margin-top: 1rem; border-top: 1px solid var(--border,#333); padding-top: 0.75rem; }
+.ticket-reply {
+  background:rgba(255,255,255,0.03); border-radius:8px; padding:0.6rem 0.75rem;
+  margin-bottom:0.5rem; border-left:3px solid var(--accent,#f5a623);
+}
+.ticket-reply--admin { border-left-color:#4ade80; }
+.ticket-reply__header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.3rem; }
+.ticket-reply__author { font-size:0.82rem; font-weight:600; color:var(--white); }
+.ticket-reply__badge { font-size:0.7rem; background:#4ade80; color:#000; border-radius:4px; padding:0.1rem 0.4rem; margin-left:0.3rem; vertical-align:middle; }
+.ticket-reply__time { font-size:0.72rem; color:var(--grey-500); }
+.ticket-reply__body { font-size:0.85rem; color:var(--grey-300); line-height:1.5; white-space:pre-wrap; }
+.ticket-reply__attachment { margin-top:0.4rem; }
+.ticket-reply__attachment a { font-size:0.8rem; }
 
+/* Reply form */
+.ticket-reply-form { margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--border,#333); }
+.ticket-reply-form .form-row { display:flex; gap:0.5rem; align-items:center; }
+.ticket-reply-form .form-row--sm { margin-top:0.5rem; }
+.form-input--file { position:absolute;opacity:0;width:0.1px;height:0.1px;overflow:hidden; }
+.file-label {
+  display:inline-block; padding:0.4rem 0.75rem; border:1px dashed var(--border,#555); border-radius:6px;
+  font-size:0.8rem; color:var(--grey-400); cursor:pointer; font-family:var(--sans);
+}
+.file-label:hover { border-color:var(--accent,#f5a623); color:var(--accent,#f5a623); }
+.ticket-details { font-size:0.88rem; }
+.ticket-details__description p { color:var(--grey-300); line-height:1.5; white-space:pre-wrap; }
+.ticket-details__note { margin-top:0.75rem; padding:0.6rem; background:rgba(74,222,128,0.08); border-radius:8px; }
+.ticket-details__note p { color:var(--grey-300); margin-top:0.25rem; white-space:pre-wrap; }
+.ticket-details__meta { margin-top:0.75rem; display:flex; gap:1rem; }
+</style>
 
 <script nonce="{{ csp_nonce }}">
 function toggleTicketDetails(ticketId) {

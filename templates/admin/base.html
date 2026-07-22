@@ -140,6 +140,12 @@
     <span>Products</span>
   </a>
   {% endif %}
+  {% if admin_can('newsletter.view') or admin_can('marketing.manage') %}
+  <a href="{{ url_for('admin_newsletter') }}" class="admin-bottom-nav__item {{ 'admin-bottom-nav__item--active' if request.endpoint == 'admin_newsletter' }}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+    <span>Newsletter</span>
+  </a>
+  {% endif %}
   <button class="admin-bottom-nav__item admin-bottom-nav__menu-btn menu" id="adminMenuBtn" onclick="toggleAdminMenu()" aria-label="Toggle menu">
     <svg width="22" height="22" viewBox="0 0 100 100">
       <path class="line line1" d="M 20,29.000046 H 80.000231 C 80.000231,29.000046 94.498839,28.817352 94.532987,66.711331 94.543142,77.980673 90.966081,81.670246 85.259173,81.668997 79.552261,81.667751 75.000211,74.999942 75.000211,74.999942 L 25.000021,25.000058" />

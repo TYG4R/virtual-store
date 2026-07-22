@@ -5340,8 +5340,24 @@ def admin_tickets():
             (admin_id,),
         ).fetchall()
 
+    # Load replies for all tickets
+    ticket_ids = [t["id"] for t in tickets]
+    replies_map = {}
+    if ticket_ids:
+        placeholders = ",".join("?" * len(ticket_ids))
+        replies = conn.execute(
+            f"""SELECT r.*, au.username AS replier_name
+                FROM admin_ticket_replies r
+                LEFT JOIN admin_users au ON r.admin_id = au.id
+                WHERE r.ticket_id IN ({placeholders})
+                ORDER BY r.created_at ASC""",
+            ticket_ids,
+        ).fetchall()
+        for r in replies:
+            replies_map.setdefault(r["ticket_id"], []).append(dict(r))
+
     conn.close()
-    return render_template("admin/tickets.html", tickets=tickets, is_master=is_master)
+    return render_template("admin/tickets.html", tickets=tickets, is_master=is_master, replies_map=replies_map)
 
 
 @app.route("/admin/tickets/new", methods=["POST"])
@@ -5439,13 +5455,26 @@ def admin_tickets_reply(ticket_id):
         conn.close()
         abort(404)
     
+    # Handle file attachment
+    attachment_name = ""
+    attachment_path = ""
+    attachment_file = request.files.get("attachment")
+    if attachment_file and attachment_file.filename:
+        try:
+            filename = save_product_image(attachment_file)
+            if filename:
+                attachment_name = attachment_file.filename
+                attachment_path = filename
+        except ValueError as e:
+            flash(str(e), "error")
+    
     # If ticket is resolved/closed, reopen
     if ticket["status"] in ("resolved", "closed"):
         conn.execute("UPDATE admin_tickets SET status = 'in_progress' WHERE id = ?", (ticket_id,))
     
     conn.execute(
-        "INSERT INTO admin_ticket_replies (ticket_id, admin_id, reply_text, created_at) VALUES (?, ?, ?, ?)",
-        (ticket_id, admin_id, reply_text, db.now()),
+        "INSERT INTO admin_ticket_replies (ticket_id, admin_id, reply_text, attachment_name, attachment_path, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (ticket_id, admin_id, reply_text, attachment_name, attachment_path, db.now()),
     )
     conn.commit()
     conn.close()

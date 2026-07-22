@@ -200,9 +200,24 @@
       </div>
     </div>
     <div class="container footer__bottom">
-      <span>&copy; {{ settings.site_name }}</span>
-      <span>{% if test_checkout_mode %}Testing mode active — orders still work{% elif razorpay_configured %}Secure checkout via Razorpay{% else %}Checkout temporarily disabled{% endif %}</span>
-    </div>
+        <span>&copy; {{ settings.site_name }}</span>
+        <div class="footer__currency">
+          <label for="currencySelector" class="footer__currency-label">Currency:</label>
+          <select id="currencySelector" class="footer__currency-select" onchange="switchCurrency(this.value)">
+            <option value="INR">₹ INR</option>
+            <option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option>
+            <option value="GBP">£ GBP</option>
+            <option value="CAD">CA$ CAD</option>
+            <option value="AUD">A$ AUD</option>
+            <option value="JPY">¥ JPY</option>
+            <option value="SGD">S$ SGD</option>
+            <option value="AED">د.إ AED</option>
+            <option value="MYR">RM MYR</option>
+          </select>
+        </div>
+        <span>{% if test_checkout_mode %}Testing mode active — orders still work{% elif razorpay_configured %}Secure checkout via Razorpay{% else %}Checkout temporarily disabled{% endif %}</span>
+      </div>
   </footer>
 <button class="back-to-top" id="backToTop" aria-label="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">
   <svg class="back-to-top__ring" width="46" height="46" viewBox="0 0 46 46">
@@ -220,12 +235,7 @@
   </div>
 </div>
 
-<!-- Easter egg — Konami code reveals the creator credit (old, unused) -->
-<div id="easter-egg-overlay" role="dialog" aria-modal="true" aria-label="Easter egg" onclick="this.classList.remove('ee-show')">
-  <span class="ee-heart">♥</span>
-  <div class="ee-text">created with love,<br>by harshit</div>
-  <div class="ee-sub">tap anywhere to close</div>
-</div>
+<!-- Old Konami code overlay removed -- only the pill-shaped easter egg remains -->
 {% include "_auth_modal.html" %}
 {% if turnstile_enabled %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
