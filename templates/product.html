@@ -626,6 +626,8 @@ function toggleWishlistHeart(btn) {
 })();
 </script>
 
+<div id="morphDebug" style="position:fixed;top:0;left:0;z-index:9999;background:red;color:white;padding:4px 8px;font-size:14px;font-family:sans-serif;">wait</div>
+
 <script nonce="{{ csp_nonce }}">
 // Morphing liquid glass — mobile buy bar merge/split
 (function(){
@@ -634,7 +636,11 @@ var buyAnchor=document.getElementById('buyAnchor');
 var nav=document.getElementById('bottomNav');
 var tray=document.getElementById('bottomNavBuyTray');
 var backTop=document.getElementById('backToTop');
-if(!buyRow||!nav||!tray)return;
+if(!buyRow||!nav||!tray){
+var d=document.getElementById('morphDebug');
+if(d)d.textContent='init fail';
+return;
+}
 
 // Tray buttons
 var f=buyRow.querySelector('.add-to-cart-form');
@@ -700,14 +706,17 @@ else{up(to);if(cb)cb();}
 }
 function ca(){if(raf){cancelAnimationFrame(raf);raf=null;}}
 
+function dbg(t){var d=document.getElementById('morphDebug');if(d)d.textContent=t;}
+dbg('ok');
+
 function expand(){
- if(exp)return;exp=true;
+ if(exp)return;exp=true;dbg('expand');
  nav.classList.add('bottom-nav--expanded');
  if(!rm)buyAnchor.className='buy-anchor--dissolving';
  anim(4,18,380,function(){anim(18,28,100,function(){anim(28,18,120,function(){})});});
 }
 function collapse(){
- if(!exp)return;exp=false;
+ if(!exp)return;exp=false;dbg('collapse');
  nav.classList.remove('bottom-nav--expanded');
  if(!rm)buyAnchor.className='buy-anchor--resolidifying';
  anim(18,-10,180,function(){setTimeout(function(){anim(-10,4,200,function(){if(!rm)buyAnchor.className='buy-anchor--solid';up(4);});},80);});
@@ -718,18 +727,20 @@ function cs(){
  if(!icd)return;
  var r=buyRow.getBoundingClientRect();
  var n=nav.getBoundingClientRect();
- if(r.bottom<n.top+10)expand();else collapse();
+ var d=r.bottom-n.top;
+ if(d<10){dbg('expand:'+Math.round(d));expand();}else{dbg('collapse:'+Math.round(d));collapse();}
 }
 
 var lsy=window.scrollY;
 try{
  var ob=new IntersectionObserver(function(es){
-es.forEach(function(e){
- if(e.target!==buyRow)return;
- var sd=window.scrollY>lsy;lsy=window.scrollY;
- if(!e.isIntersecting&&sd)expand();
- else if(e.isIntersecting&&!sd)collapse();
-});
+  es.forEach(function(e){
+   if(e.target!==buyRow)return;
+   var sd=window.scrollY>lsy;lsy=window.scrollY;
+   dbg('obs:in='+e.isIntersecting+' sd='+sd);
+   if(!e.isIntersecting&&sd)expand();
+   else if(e.isIntersecting&&!sd)collapse();
+  });
  },{threshold:[0],rootMargin:'0px 0px -'+(nav.offsetHeight+10)+'px 0px'});
  ob.observe(buyRow);
  window.__morphOb=ob;
