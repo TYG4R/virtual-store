@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}My Account — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width:560px;">
+    <div class="section-head reveal" style="margin-bottom:2rem;">
+      <span class="eyebrow">Account</span>
+      <h2>{{ customer.name }}</h2>
+      <p class="lead" style="max-width:500px;">{{ customer.phone }}</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+
+      <!-- My Wishlist -->
+      <a href="{{ url_for('account_wishlist') }}" class="admin-order-card" style="display:flex;align-items:center;justify-content:space-between;text-decoration:none;color:inherit;padding:1rem 1.25rem;">
+        <span><strong>My Wishlist</strong><br><span style="font-size:0.82rem;color:var(--grey-600);">Products you've saved for later</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+
+      <!-- My Library -->
+      <a href="{{ url_for('account_library') }}" class="admin-order-card" style="display:flex;align-items:center;justify-content:space-between;text-decoration:none;color:inherit;padding:1rem 1.25rem;">
+        <span><strong>My Library</strong><br><span style="font-size:0.82rem;color:var(--grey-600);">All your purchased items</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+
+      <!-- My Orders -->
+      <a href="{{ url_for('account_orders') }}" class="admin-order-card" style="display:flex;align-items:center;justify-content:space-between;text-decoration:none;color:inherit;padding:1rem 1.25rem;">
+        <span><strong>My Orders</strong><br><span style="font-size:0.82rem;color:var(--grey-600);">Track deliveries and order history</span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+
+      <!-- Change Username -->
+      <details style="border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <summary style="padding:1rem 1.25rem;cursor:pointer;font-weight:600;font-size:0.95rem;list-style:none;display:flex;align-items:center;justify-content:space-between;">
+          Change Username
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <form method="POST" action="{{ url_for('auth_update_profile') }}" style="padding:0 1.25rem 1rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="text" name="name" value="{{ customer.name }}" placeholder="New username"
+                 style="width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border);border-radius:8px;font-size:0.9rem;margin-bottom:0.6rem;box-sizing:border-box;">
+          <button type="submit" class="btn btn--primary" style="width:100%;">Save</button>
+        </form>
+      </details>
+
+      <!-- Delete Account -->
+      <details style="border:1px solid #feb2b2;border-radius:12px;overflow:hidden;">
+        <summary style="padding:1rem 1.25rem;cursor:pointer;font-weight:600;font-size:0.95rem;list-style:none;display:flex;align-items:center;justify-content:space-between;color:#e53e3e;">
+          Delete Account
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div style="padding:0 1.25rem 1rem;border-top:1px solid #feb2b2;padding-top:0.75rem;">
+          <p style="font-size:0.85rem;color:var(--grey-600);margin:0 0 0.75rem;">This permanently removes your account and all personal data. Orders are anonymised.</p>
+          <form method="POST" action="{{ url_for('auth_delete_account') }}" onsubmit="return confirm('Are you sure? This cannot be undone.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn--outline" style="width:100%;text-align:center;color:#e53e3e;border-color:#e53e3e;">Permanently Delete My Account</button>
+          </form>
+        </div>
+      </details>
+
+      <!-- Sign Out Everywhere -->
+      <details style="border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <summary style="padding:1rem 1.25rem;cursor:pointer;font-weight:600;font-size:0.95rem;list-style:none;display:flex;align-items:center;justify-content:space-between;color:var(--grey-900);">
+          Sign Out Everywhere
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <div style="padding:0 1.25rem 1rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+          <p style="font-size:0.85rem;color:var(--grey-600);margin:0 0 0.75rem;">This will sign you out of every browser and device where you're logged in, including this one.</p>
+          <form method="POST" action="{{ url_for('account_signout_everywhere') }}" onsubmit="return confirm('Are you sure? This will sign you out of all devices, including this one.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn--outline" style="width:100%;text-align:center;color:#dc2626;border-color:#dc2626;">Sign Out Everywhere</button>
+          </form>
+        </div>
+      </details>
+
+      <!-- Sign Out -->
+      <form method="POST" action="{{ url_for('auth_logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn--outline" style="width:100%;text-align:center;">Sign Out</button>
+      </form>
+
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Track Your Order — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container form-card">
+    {% if error %}
+    <div class="flash flash--error" style="text-align:center; margin-bottom:1.5rem;">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    {% if prefill_ref and order and order.status == 'paid' %}
+    <div class="flash flash--success" style="text-align:center; margin-bottom:2rem;">
+      {% if order.payment_mode == 'test' %}🧪 Testing mode order placed. No payment was collected, but your order is now in the system and notifications should still work.{% else %}🎉 Thank you! Your payment was received. Save this page to check on your delivery.{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="section-head" style="margin-bottom:2rem;">
+      <span class="eyebrow">Order Status</span>
+      <h2>Track Your Order</h2>
+    </div>
+
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>Order Reference</label>
+        <input type="text" name="order_ref" placeholder="ORD-XXXXXX" required
+               value="{{ request.form.get('order_ref', prefill_ref) }}">
+      </div>
+      <div class="field">
+        <label>Email used at checkout</label>
+        <input type="email" name="email" placeholder="you@example.com" required
+               value="{{ request.form.get('email', prefill_email) }}">
+      </div>
+      <button class="btn btn--full" type="submit">Check Status</button>
+    </form>
+
+    {% if searched %}
+      <div class="divider"></div>
+      {% if order %}
+        <h3 style="font-family:var(--serif);">{{ order.product_name }}</h3>
+        {% if order_items %}
+        <ul style="margin: 0.5rem 0 1rem; padding-left: 1.1rem; font-size: 0.88rem; color: var(--grey-700);">
+          {% for it in order_items %}
+          <li>{{ it.product_name }} × {{ it.quantity }} — {{ settings.currency_symbol }}{{ "{:,}".format(it.line_total) }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        <p style="color:var(--grey-500); font-size:0.9rem;">
+          Amount paid: {{ settings.currency_symbol }}{{ "{:,}".format(order.amount) }}
+          {% if order.coupon_code %}(coupon {{ order.coupon_code }} applied){% endif %}
+        </p>
+
+        {# Visual delivery timeline #}
+        {% set statuses = {'created': 0, 'paid': 1, 'delivered': 3, 'cancelled': -1, 'failed': -1} %}
+        {% set current = statuses.get(order.status, 0) %}
+        {% set is_terminal = current < 0 %}
+        {% set done_class = 'timeline__step--done' %}
+        {% set active_class = 'timeline__step--active' %}
+        {% set fail_class = 'timeline__step--failed' %}
+
+        <div class="delivery-timeline">
+          {% if is_terminal %}
+            {# Cancelled or failed — show the terminal step only #}
+            {% if order.status == 'cancelled' %}
+            <div class="timeline__step timeline__step--failed">
+              <div class="timeline__icon">✕</div>
+              <div class="timeline__content">
+                <strong>Cancelled</strong>
+                {% if order.delivered_at %}<span class="timeline__date">{{ order.delivered_at[:10] }}</span>{% endif %}
+                <p>This order was cancelled. Please contact us if you have questions.</p>
+              </div>
+            </div>
+            {% else %}
+            <div class="timeline__step timeline__step--failed">
+              <div class="timeline__icon">!</div>
+              <div class="timeline__content">
+                <strong>Payment Failed</strong>
+                <p>Payment for this order could not be verified. Please try again or contact us.</p>
+              </div>
+            </div>
+            {% endif %}
+          {% else %}
+            {# Normal flow: created → paid → delivered #}
+            <div class="timeline__step {{ done_class if current >= 0 else '' }}">
+              <div class="timeline__icon">{{ '✓' if current >= 0 else '1' }}</div>
+              <div class="timeline__content">
+                <strong>Order Placed</strong>
+                <span class="timeline__date">{{ order.created_at[:10] if order.created_at else '' }}</span>
+              </div>
+            </div>
+            <div class="timeline__step {{ done_class if current >= 1 else '' }} {{ active_class if current == 1 else '' }}">
+              <div class="timeline__icon">{{ '✓' if current >= 1 else '2' }}</div>
+              <div class="timeline__content">
+                <strong>Payment Received</strong>
+                {% if order.paid_at %}
+                  <span class="timeline__date">{{ order.paid_at[:10] }}</span>
+                {% elif current >= 1 %}
+                  <span class="timeline__date">{{ order.created_at[:10] if order.created_at else '' }}</span>
+                {% endif %}
+                {% if order.payment_mode == 'test' %}
+                  <p style="font-size:0.82rem; color:var(--grey-500); margin-top:0.3rem;">Testing mode — no live payment was collected.</p>
+                {% endif %}
+              </div>
+            </div>
+            <div class="timeline__step {{ done_class if current >= 3 else '' }} {{ active_class if current == 3 else '' }}">
+              <div class="timeline__icon">{{ '✓' if current >= 3 else '3' }}</div>
+              <div class="timeline__content">
+                <strong>Delivered</strong>
+                {% if order.delivered_at %}
+                  <span class="timeline__date">{{ order.delivered_at[:10] }}</span>
+                {% elif current == 1 %}
+                  <p style="font-size:0.88rem; margin-top:0.3rem;">Your order is being prepared and will be delivered shortly.</p>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if order.status == 'delivered' %}
+          <div style="margin-top:1.5rem;">
+            {% import '_delivery_block.html' as dblock with context %}
+            {{ dblock.delivery_block(order, settings, order_items, product_map, delivery_content_type) }}
+          </div>
+          <p style="margin-top:1rem;font-size:0.82rem;color:var(--grey-500);">
+            ⓘ Download links expire after 72 hours and can be re-downloaded up to 5 times. If yours has expired, contact us for a fresh link.
+          </p>
+          <p style="margin-top:1.5rem;"><a href="{{ url_for('home') }}#products" class="btn btn--outline btn--sm">Continue Shopping</a></p>
+        {% endif %}
+
+        {% if order.status == 'created' %}
+        <div style="margin-top:1.5rem;padding:1rem;border:1px dashed var(--border);border-radius:12px;">
+          <p style="font-size:0.85rem;margin:0 0 0.5rem;"><strong>Payment not yet received</strong></p>
+          <p style="font-size:0.82rem;color:var(--grey-500);margin-bottom:0.75rem;">This order hasn't been paid yet. You can cancel it if you changed your mind.</p>
+          <button class="btn btn--outline btn--sm" onclick="cancelUnpaidOrder('{{ order.order_ref }}', '{{ order.customer_email }}')" style="color:#e53e3e;border-color:#e53e3e;">Cancel Unpaid Order</button>
+          <p id="cancelMsg" style="font-size:0.85rem;margin-top:0.5rem;display:none;"></p>
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="empty-state">
+          <h3>No order found</h3>
+          <p>We couldn't find an order matching that reference and email. Double-check what you entered — the order reference is usually printed on your payment confirmation email.</p>
+          <a href="{{ url_for('home') }}#products" class="btn btn--outline">Browse Products</a>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/delivery.js') }}?v={{ static_version }}"></script>
+<script nonce="{{ csp_nonce }}">
+function cancelUnpaidOrder(orderRef, email) {
+  if (!confirm('Cancel this unpaid order? This cannot be undone.')) return;
+  var msgEl = document.getElementById('cancelMsg');
+  msgEl.style.display = 'none';
+  fetch('/api/order/' + orderRef + '/cancel-unpaid', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+    body: JSON.stringify({email: email}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.success) {
+      msgEl.textContent = 'Order cancelled.';
+      msgEl.style.display = 'block'; msgEl.style.color = '#4caf50';
+      setTimeout(function() { location.reload(); }, 1500);
+    } else {
+      msgEl.textContent = data.error;
+      msgEl.style.display = 'block'; msgEl.style.color = '#cc5555';
+    }
+  });
+}
+</script>
+{% endblock %}

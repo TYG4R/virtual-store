@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+<div class="admin-page">
+  {% if entries %}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Who</th>
+        <th>Action</th>
+        <th>Target</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in entries %}
+      <tr>
+        <td class="admin-table__muted" style="white-space:nowrap;">{{ e.created_at }}</td>
+        <td>{{ e.username or 'unknown' }}</td>
+        <td><code>{{ e.action }}</code></td>
+        <td class="admin-table__muted">{{ e.target }}</td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ e.details }}">{{ e.details }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if total_pages > 1 %}
+  <div style="display:flex;gap:0.5rem;justify-content:center;padding:1rem;">
+    {% if page > 1 %}
+      <a href="?page={{ page - 1 }}" class="btn btn--sm btn--outline">&larr; Newer</a>
+    {% endif %}
+    <span style="padding:0.35rem 0.75rem;font-size:0.85rem;color:var(--grey-500);">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+      <a href="?page={{ page + 1 }}" class="btn btn--sm btn--outline">Older &rarr;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p style="text-align:center;padding:2rem;color:var(--grey-500);">No audit log entries yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

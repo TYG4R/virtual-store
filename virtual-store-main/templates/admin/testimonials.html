@@ -1,0 +1,71 @@
+{% extends "admin/base.html" %}
+{% block title %}Testimonials{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Testimonials</h1></div>
+<p class="help-text">These appear in a dedicated section on your homepage to build trust with new visitors.</p>
+
+{% for t in testimonials %}
+<div class="card-box">
+  <form method="POST" action="{{ url_for('admin_testimonials_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="id" value="{{ t.id }}">
+    <div class="field">
+      <label>Customer Name</label>
+      <input type="text" name="customer_name" value="{{ t.customer_name }}" required>
+    </div>
+    <div class="field">
+      <label>Quote</label>
+      <textarea name="quote" required>{{ t.quote }}</textarea>
+    </div>
+    <div class="field">
+      <label>Rating</label>
+      <select name="rating">
+        {% for n in range(5, 0, -1) %}
+        <option value="{{ n }}" {{ 'selected' if t.rating == n }}>{{ n }} star{{ 's' if n != 1 }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field field--checkbox">
+      <input type="checkbox" name="visible" id="tvis-{{ t.id }}" {{ 'checked' if t.visible }}>
+      <label for="tvis-{{ t.id }}" style="margin:0;">Show on homepage</label>
+    </div>
+    <div class="row-actions">
+      <button class="btn btn--outline btn--sm" type="submit">Save</button>
+    </div>
+  </form>
+  <form method="POST" action="{{ url_for('admin_testimonials_delete', testimonial_id=t.id) }}"
+        onsubmit="return confirm('Delete this testimonial?');" style="margin-top:0.5rem;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+  </form>
+</div>
+{% endfor %}
+
+<div class="card-box">
+  <h3>Add New Testimonial</h3>
+  <form method="POST" action="{{ url_for('admin_testimonials_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label>Customer Name</label>
+      <input type="text" name="customer_name" placeholder="e.g. Priya S." required>
+    </div>
+    <div class="field">
+      <label>Quote</label>
+      <textarea name="quote" placeholder="What did they say about your product?" required></textarea>
+    </div>
+    <div class="field">
+      <label>Rating</label>
+      <select name="rating">
+        {% for n in range(5, 0, -1) %}
+        <option value="{{ n }}" {{ 'selected' if n == 5 }}>{{ n }} star{{ 's' if n != 1 }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field field--checkbox">
+      <input type="checkbox" name="visible" id="tvis-new" checked>
+      <label for="tvis-new" style="margin:0;">Show on homepage</label>
+    </div>
+    <button class="btn" type="submit">Add Testimonial</button>
+  </form>
+</div>
+{% endblock %}

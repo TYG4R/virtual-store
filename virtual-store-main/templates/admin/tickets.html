@@ -1,0 +1,187 @@
+{% extends "admin/base.html" %}
+{% block title %}Tickets{% endblock %}
+{% block content %}
+<div class="admin-page">
+  <div class="admin-page__header">
+    <h1 class="admin-page__title">Support Tickets</h1>
+    {% if not is_master %}
+    <button class="btn btn--primary" onclick="document.getElementById('newTicketModal').classList.add('modal--open')">
+      + New Ticket
+    </button>
+    {% endif %}
+  </div>
+
+  {% if tickets %}
+  <div class="table-responsive">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Status</th>
+          {% if is_master %}<th>Creator</th>{% endif %}
+          <th>Created</th>
+          {% if is_master %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for ticket in tickets %}
+        <tr class="ticket-row" onclick="toggleTicketDetails({{ ticket.id }})">
+          <td>{{ ticket.id }}</td>
+          <td>{{ ticket.title }}</td>
+          <td>
+            <span class="ticket-category ticket-category--{{ ticket.category }}">
+              {{ ticket.category|replace('_', ' ')|title }}
+            </span>
+          </td>
+          <td>
+            <span class="ticket-status ticket-status--{{ ticket.status }}">
+              {{ ticket.status|replace('_', ' ')|title }}
+            </span>
+          </td>
+          {% if is_master %}<td>{{ ticket.creator_name or 'Unknown' }}</td>{% endif %}
+          <td class="text-sm text-muted">{{ ticket.created_at[:10] }}</td>
+          {% if is_master %}
+          <td>
+            <button class="btn btn--sm" onclick="event.stopPropagation(); toggleTicketDetails({{ ticket.id }})">
+              Manage
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+        <tr id="ticket-details-{{ ticket.id }}" class="ticket-details-row" style="display:none;">
+          <td colspan="{% if is_master %}7{% else %}5{% endif %}">
+            <div class="ticket-details">
+              <div class="ticket-details__description">
+                <strong>Description:</strong>
+                <p>{{ ticket.description }}</p>
+              </div>
+
+              {% if is_master %}
+              <form method="POST" action="{{ url_for('admin_tickets_status', ticket_id=ticket.id) }}" class="ticket-admin-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="status-{{ ticket.id }}">Status</label>
+                    <select name="status" id="status-{{ ticket.id }}" class="form-input">
+                      <option value="open" {% if ticket.status == 'open' %}selected{% endif %}>Open</option>
+                      <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                      <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>Resolved</option>
+                      <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>Closed</option>
+                    </select>
+                  </div>
+                  <div class="form-group form-group--grow">
+                    <label for="note-{{ ticket.id }}">Admin Note</label>
+                    <textarea name="admin_note" id="note-{{ ticket.id }}" class="form-input" rows="2" placeholder="Add a note...">{{ ticket.admin_note }}</textarea>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn--primary btn--sm">Update</button>
+                  {% if ticket.status not in ('resolved', 'closed') %}
+                  <button type="submit" name="status" value="resolved" class="btn btn--success btn--sm"
+                          onclick="this.form.querySelector('select').value='resolved'">Resolve</button>
+                  {% endif %}
+                </div>
+              </form>
+              {% else %}
+                {% if ticket.admin_note %}
+                <div class="ticket-details__note">
+                  <strong>Admin Response:</strong>
+                  <p>{{ ticket.admin_note }}</p>
+                </div>
+                {% endif %}
+              {% endif %}
+
+              <div class="ticket-details__meta text-sm text-muted">
+                <span>Created: {{ ticket.created_at[:16].replace('T', ' ') }}</span>
+                {% if ticket.resolved_at %}
+                <span>Resolved: {{ ticket.resolved_at[:16].replace('T', ' ') }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="admin-empty-state">
+    <p>No tickets yet.</p>
+    {% if not is_master %}
+    <p>Need help? Submit a ticket and the admin will review it.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- New Ticket Modal -->
+<div id="newTicketModal" class="modal">
+  <div class="modal__backdrop" onclick="document.getElementById('newTicketModal').classList.remove('modal--open')"></div>
+  <div class="modal__content">
+    <div class="modal__header">
+      <h2>New Ticket</h2>
+      <button class="modal__close" onclick="document.getElementById('newTicketModal').classList.remove('modal--open')">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('admin_tickets_new') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="ticket-category">Category</label>
+        <select name="category" id="ticket-category" class="form-input">
+          <option value="bug_report">Bug Report</option>
+          <option value="feature_request">Feature Request</option>
+          <option value="content_update">Content Update</option>
+          <option value="permission_request">Permission Request</option>
+          <option value="general">General</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="ticket-title">Title</label>
+        <input type="text" name="title" id="ticket-title" class="form-input" required placeholder="Brief summary of your request">
+      </div>
+      <div class="form-group">
+        <label for="ticket-description">Description</label>
+        <textarea name="description" id="ticket-description" class="form-input" rows="5" required placeholder="Provide as much detail as possible..."></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn" onclick="document.getElementById('newTicketModal').classList.remove('modal--open')">Cancel</button>
+        <button type="submit" class="btn btn--primary">Submit Ticket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<style>
+/* Admin ticket modal readability */
+.modal { position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center; }
+.modal--open { display:flex; }
+.modal__backdrop { position:fixed;inset:0;background:rgba(0,0,0,0.6); }
+.modal__content {
+  position:relative;max-width:520px;width:calc(100%-2.5rem);background:var(--bg,#1e1e1e);
+  border-radius:16px;padding:1.75rem;border:1px solid var(--border,#333);
+  max-height:85vh;overflow-y:auto;color:var(--white);
+}
+.modal__content .form-group label { color:var(--grey-300);font-size:0.82rem;margin-bottom:0.3rem;display:block; }
+.modal__content .form-input {
+  width:100%;padding:0.6rem 0.75rem;border:1px solid var(--border,#333);
+  border-radius:6px;background:rgba(255,255,255,0.04);color:var(--white);
+  font-family:var(--sans);font-size:0.85rem;
+}
+.modal__content .form-input::placeholder { color:var(--grey-500); }
+.modal__content .form-input:focus { outline:none;border-color:var(--accent,#f5a623); }
+.ticket-row { cursor: pointer; }
+
+
+
+<script nonce="{{ csp_nonce }}">
+function toggleTicketDetails(ticketId) {
+  var row = document.getElementById('ticket-details-' + ticketId);
+  if (row) {
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  }
+}
+</script>
+{% endblock %}

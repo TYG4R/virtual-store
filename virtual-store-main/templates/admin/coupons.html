@@ -1,0 +1,206 @@
+{% extends "admin/base.html" %}
+{% block title %}Coupons{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Coupons</h1></div>
+<p class="help-text">
+  Create discount codes customers can enter at checkout, or set up automatic
+  coupons that apply themselves based on cart value, specific products, customer
+  type, or referral links. Set start and expiry dates to auto-expire coupons.
+</p>
+
+<div class="card-box">
+  <h3>Create New Coupon</h3>
+  <form method="POST" action="{{ url_for('admin_coupons_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="field">
+      <label>Code</label>
+      <input type="text" name="code" placeholder="e.g. WELCOME10" required style="text-transform:uppercase;">
+      <small>What customers type at checkout. Not case-sensitive.</small>
+    </div>
+
+    <div class="field">
+      <label>Discount Type</label>
+      <select name="discount_type">
+        <option value="percent">Percentage off (%)</option>
+        <option value="flat">Flat amount off (₹)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Discount Value</label>
+      <input type="number" name="discount_value" min="1" placeholder="e.g. 10" required>
+      <small>For percentage, enter a number 1–100. For flat, enter the rupee amount.</small>
+    </div>
+
+    <div class="field">
+      <label>Usage Limit (optional)</label>
+      <input type="number" name="usage_limit" min="1" placeholder="Leave blank for unlimited uses">
+    </div>
+
+    <div class="field field--checkbox">
+      <input type="checkbox" name="auto_apply" id="coupon-auto-apply">
+      <label for="coupon-auto-apply" style="margin:0;">Apply automatically (no code needed)</label>
+      <small style="display:block; margin-top:0.25rem;">When checked, the coupon applies itself when trigger conditions are met.</small>
+    </div>
+
+    <div class="field" id="triggerTypeField" style="display:none;">
+      <label>Trigger Type</label>
+      <select name="trigger_type" id="triggerType">
+        <option value="cart_threshold">Cart Threshold — minimum cart value</option>
+        <option value="product_specific">Product-Specific — specific product in cart</option>
+        <option value="customer_segment">Customer Segment — new or logged-in users</option>
+        <option value="url_driven">URL-Driven — via ?coupon=CODE link</option>
+      </select>
+      <small>How this coupon activates without the customer typing a code.</small>
+    </div>
+
+    <div class="field" id="minCartField" style="display:none;">
+      <label>Minimum Cart Value (₹)</label>
+      <input type="number" name="min_cart_value" min="0" placeholder="e.g. 2000">
+      <small>Coupon auto-applies when cart subtotal reaches this amount.</small>
+    </div>
+
+    <div class="field" id="targetProductField" style="display:none;">
+      <label>Target Product</label>
+      <select name="target_product_id">
+        <option value="">— Select a product —</option>
+        {% for p in products %}
+        <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+      <small>Coupon auto-applies when this product is in the cart or being viewed.</small>
+    </div>
+
+    <div class="field" id="segmentField" style="display:none;">
+      <label>Customer Segment</label>
+      <select name="customer_segment">
+        <option value="all">All customers</option>
+        <option value="new_user">New customers (first order)</option>
+        <option value="logged_in">Signed-in customers</option>
+      </select>
+      <small>Who sees this automatic discount.</small>
+    </div>
+
+    <div class="field">
+      <label>Start Date (optional)</label>
+      <input type="datetime-local" name="starts_at">
+      <small>Coupon becomes active from this date/time. Leave blank to start immediately.</small>
+    </div>
+
+    <div class="field">
+      <label>Expiry Date (optional)</label>
+      <input type="datetime-local" name="expires_at">
+      <small>Coupon auto-expires at this date/time. Leave blank for no expiry.</small>
+    </div>
+
+    <div class="field field--checkbox">
+      <input type="checkbox" name="active" id="coupon-active" checked>
+      <label for="coupon-active" style="margin:0;">Active immediately</label>
+    </div>
+
+    <button class="btn" type="submit">Create Coupon</button>
+  </form>
+</div>
+
+{% if coupons %}
+<table class="table">
+  <tr>
+    <th>Code</th>
+    <th>Discount</th>
+    <th>Trigger</th>
+    <th>Used</th>
+    <th>Validity</th>
+    <th>Status</th>
+    <th></th>
+  </tr>
+  {% for c in coupons %}
+  <tr>
+    <td>
+      <strong>{{ c.code }}</strong>
+      {% if c.auto_apply %}<span class="badge badge--delivered" style="margin-left:0.4rem; font-size:0.7rem;">AUTO</span>{% endif %}
+    </td>
+    <td>{{ c.discount_value }}{{ '%' if c.discount_type == 'percent' else ' ₹ off' }}</td>
+    <td>
+      {% if c.trigger_type == 'cart_threshold' %}
+        Cart ≥ ₹{{ c.min_cart_value or 0 }}
+      {% elif c.trigger_type == 'product_specific' %}
+        Specific product
+      {% elif c.trigger_type == 'customer_segment' %}
+        {{ c.customer_segment | replace('_',' ') }}
+      {% elif c.trigger_type == 'url_driven' %}
+        URL link
+      {% else %}
+        Manual code
+      {% endif %}
+    </td>
+    <td>{{ c.used_count }}{{ '/' ~ c.usage_limit if c.usage_limit else '' }}</td>
+    <td style="font-size:0.8rem;">
+      {% if c.starts_at or c.expires_at %}
+        {% if c.starts_at %}<span style="color:var(--grey-500);">from {{ c.starts_at[:16] }}</span><br>{% endif %}
+        {% if c.expires_at %}<span style="color:var(--grey-500);">until {{ c.expires_at[:16] }}</span>{% endif %}
+      {% else %}
+        <span style="color:var(--grey-400);">No limits</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if not c.active %}
+        <span class="badge badge--cancelled">Off</span>
+      {% elif c.expires_at and c.expires_at < now_iso %}
+        <span class="badge badge--cancelled">Expired</span>
+      {% elif c.starts_at and c.starts_at > now_iso %}
+        <span class="badge badge--pending">Scheduled</span>
+      {% else %}
+        <span class="badge badge--delivered">Active</span>
+      {% endif %}
+    </td>
+    <td class="row-actions">
+      <form method="POST" action="{{ url_for('admin_coupons_toggle', coupon_id=c.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--outline btn--sm" type="submit">{{ 'Deactivate' if c.active else 'Activate' }}</button>
+      </form>
+      <form method="POST" action="{{ url_for('admin_coupons_delete', coupon_id=c.id) }}"
+            onsubmit="return confirm('Delete this coupon?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty-state">No coupons yet.</div>
+{% endif %}
+
+<script nonce="{{ csp_nonce }}">
+// Show/hide conditional fields based on trigger type and auto_apply checkbox
+(function() {
+  var autoCheck = document.getElementById('coupon-auto-apply');
+  var triggerField = document.getElementById('triggerTypeField');
+  var triggerSelect = document.getElementById('triggerType');
+  var minCartField = document.getElementById('minCartField');
+  var targetProductField = document.getElementById('targetProductField');
+  var segmentField = document.getElementById('segmentField');
+
+  function updateVisibility() {
+    if (autoCheck.checked) {
+      triggerField.style.display = '';
+    } else {
+      triggerField.style.display = 'none';
+      minCartField.style.display = 'none';
+      targetProductField.style.display = 'none';
+      segmentField.style.display = 'none';
+      return;
+    }
+    var trigger = triggerSelect.value;
+    minCartField.style.display = (trigger === 'cart_threshold') ? '' : 'none';
+    targetProductField.style.display = (trigger === 'product_specific') ? '' : 'none';
+    segmentField.style.display = (trigger === 'customer_segment') ? '' : 'none';
+  }
+
+  autoCheck.addEventListener('change', updateVisibility);
+  triggerSelect.addEventListener('change', updateVisibility);
+  updateVisibility();
+})();
+</script>
+{% endblock %}

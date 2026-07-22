@@ -1,0 +1,53 @@
+{% extends "admin/base.html" %}
+{% block title %}Orders{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Orders</h1>
+  <a href="{{ url_for('admin_orders_export') }}" class="btn btn--outline btn--sm">Download CSV</a>
+</div>
+
+<div class="row-actions" style="margin-bottom:1rem; flex-wrap:wrap;">
+  <a href="{{ url_for('admin_orders', q=q, mode=mode_filter) }}" class="btn btn--sm {{ 'btn--outline' if status_filter }}">All</a>
+  <a href="{{ url_for('admin_orders', status='paid', q=q, mode=mode_filter) }}" class="btn btn--sm {{ 'btn--outline' if status_filter != 'paid' }}">Awaiting Delivery</a>
+  <a href="{{ url_for('admin_orders', status='delivered', q=q, mode=mode_filter) }}" class="btn btn--sm {{ 'btn--outline' if status_filter != 'delivered' }}">Delivered</a>
+  <a href="{{ url_for('admin_orders', status='cancelled', q=q, mode=mode_filter) }}" class="btn btn--sm {{ 'btn--outline' if status_filter != 'cancelled' }}">Cancelled</a>
+  <a href="{{ url_for('admin_orders', status='created', q=q, mode=mode_filter) }}" class="btn btn--sm {{ 'btn--outline' if status_filter != 'created' }}">Unpaid</a>
+  <a href="{{ url_for('admin_orders', q=q, mode='gateway', status=status_filter) }}" class="btn btn--sm {{ 'btn--outline' if mode_filter != 'gateway' }}">Live Payments</a>
+  <a href="{{ url_for('admin_orders', q=q, mode='test', status=status_filter) }}" class="btn btn--sm {{ 'btn--outline' if mode_filter != 'test' }}">Testing Mode</a>
+  {% if status_filter == 'paid' and orders %}
+  <form method="POST" action="{{ url_for('admin_orders_bulk_deliver') }}" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn--sm" onclick="return confirm('Deliver all {{ orders|length }} pending orders at once?')">Deliver All {{ orders|length }} →</button>
+  </form>
+  {% endif %}
+</div>
+
+<form method="GET" action="{{ url_for('admin_orders') }}" style="margin-bottom:1.5rem; max-width:420px;">
+  <input type="hidden" name="status" value="{{ status_filter }}">
+  <input type="hidden" name="mode" value="{{ mode_filter }}">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search by order ref, name, email, or phone…"
+         style="width:100%; padding:0.6rem 0.9rem; border:1px solid var(--border); border-radius:3px; font-family:var(--sans); font-size:0.85rem;">
+</form>
+
+{% if orders %}
+<table class="table">
+  <tr><th>Order</th><th>Product</th><th>Customer</th><th>Amount</th><th>Status</th><th></th></tr>
+  {% for o in orders %}
+  <tr>
+    <td>{{ o.order_ref }}</td>
+    <td>{{ o.product_name }}</td>
+    <td>{{ o.customer_name }}<br><small style="color:var(--grey-500);">{{ o.customer_email }}</small></td>
+    <td>₹{{ "{:,}".format(o.amount) }}{% if o.coupon_code %}<br><small style="color:var(--grey-500);">{{ o.coupon_code }} (-₹{{ o.discount_amount }})</small>{% endif %}</td>
+    <td><span class="badge badge--{{ o.status }}">{{ o.status }}</span>{% if o.payment_mode == 'test' %} <span class="badge badge--test">testing mode</span>{% else %} <span class="badge badge--live">live</span>{% endif %}
+      {% if o.status == 'created' and o.created_at %}
+        <small style="color:var(--grey-500); display:block; margin-top:2px;">Check payment</small>
+      {% endif %}
+    </td>
+    <td><a href="{{ url_for('admin_order_detail', order_id=o.id) }}" class="btn btn--outline btn--sm">View</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty-state">{% if status_filter or q or mode_filter %}No orders match your filters.{% else %}No orders yet.{% endif %}</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block title %}Admin{% endblock %} — {{ settings.site_name }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar__header">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-sidebar__brand">{{ settings.site_name }}</a>
+    </div>
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="{{ 'active' if request.endpoint == 'admin_dashboard' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        Dashboard
+      </a>
+      {% if admin_can('orders.view') %}
+      <a href="{{ url_for('admin_orders') }}" class="{{ 'active' if 'admin_order' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+        Orders
+        {% if pending_count is defined and pending_count > 0 %}<span class="admin-nav__badge">{{ pending_count }}</span>{% endif %}
+      </a>
+      {% endif %}
+      {% if admin_can('products.edit') %}
+      <a href="{{ url_for('admin_products') }}" class="{{ 'active' if 'admin_product' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4 8 4z"></path><path d="M4 7v10l8 4 8-4V7"></path></svg>
+        Products
+      </a>
+      {% endif %}
+      {% if admin_can('content.manage') %}
+      <a href="{{ url_for('admin_sections') }}" class="{{ 'active' if 'admin_sections' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+        Homepage
+      </a>
+      {% endif %}
+      {% if admin_can('coupons.manage') %}
+      <a href="{{ url_for('admin_coupons') }}" class="{{ 'active' if 'admin_coupons' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12"></path><path d="M2 7h20v5H2z"></path><path d="M12 22V7"></path><path d="M12 7H8.5a2.5 2.5 0 0 0 0 5H12"></path><path d="M12 7h3.5a2.5 2.5 0 0 1 0 5H12"></path></svg>
+        Coupons
+      </a>
+      <a href="{{ url_for('admin_coupon_history') }}" class="{{ 'active' if 'admin_coupon_history' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        Coupon Usage
+      </a>
+      {% endif %}
+      {% if admin_can('content.manage') %}
+      <a href="{{ url_for('admin_testimonials') }}" class="{{ 'active' if 'admin_testimonials' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"></path></svg>
+        Reviews
+      </a>
+      <a href="{{ url_for('admin_faqs') }}" class="{{ 'active' if 'admin_faqs' in request.endpoint }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        FAQs
+      </a>
+      {% endif %}
+      {% if admin_can('newsletter.view') or admin_can('marketing.manage') %}
+      <a href="{{ url_for('admin_newsletter') }}" class="{{ 'active' if request.endpoint == 'admin_newsletter' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+        Newsletter
+      </a>
+      {% endif %}
+      {% if admin_can('settings.manage') %}
+      <a href="{{ url_for('admin_settings') }}" class="{{ 'active' if request.endpoint == 'admin_settings' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Settings
+      </a>
+      {% endif %}
+      {% if admin_can('audit.view') %}
+      <a href="{{ url_for('admin_audit_log') }}" class="{{ 'active' if request.endpoint == 'admin_audit_log' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        Audit Log
+      </a>
+      {% endif %}
+      {% if admin_can('inventory.manage') %}
+      <a href="{{ url_for('admin_stock_requests') }}" class="{{ 'active' if request.endpoint == 'admin_stock_requests' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+        Waitlist
+      </a>
+      {% endif %}
+      {% if admin_can('tickets.create') %}
+      <a href="{{ url_for('admin_tickets') }}" class="{{ 'active' if request.endpoint == 'admin_tickets' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 14s2 1 4 1 4-1 4-1"/><path d="M8 10h.01M16 10h.01"/><path d="M12 2c-4.418 0-8 3.582-8 8v4.472a2.5 2.5 0 0 0 .756 1.772l1.272 1.272A2.5 2.5 0 0 1 7 18.944V21h10v-2.056a2.5 2.5 0 0 1 .972-1.428l1.272-1.272A2.5 2.5 0 0 0 20 14.472V10c0-4.418-3.582-8-8-8z"/></svg>
+        Tickets
+      </a>
+      {% endif %}
+      {% if admin_can('admin.manage') %}
+      <a href="{{ url_for('admin_team') }}" class="{{ 'active' if request.endpoint == 'admin_team' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        Team
+      </a>
+      {% endif %}
+      <div class="divider-light"></div>
+      <a href="{{ url_for('home') }}" target="_blank" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+        View Live Site
+      </a>
+      <a href="{{ url_for('admin_account') }}" class="{{ 'active' if request.endpoint == 'admin_account' }}" onclick="closeAdminMenu()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        My Account
+      </a>
+      <form method="POST" action="{{ url_for('admin_logout') }}" style="margin:0;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="admin-nav__logout-btn" onclick="localStorage.clear()">Log Out</button>
+      </form>
+    </nav>
+  </aside>
+  <main class="admin-main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash flash--{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+        </main>
+      </div>
+  
+<!-- Mobile bottom nav — 4 quick actions, More opens full menu -->
+<nav class="admin-bottom-nav" id="adminBottomNav" aria-label="Admin navigation">
+  <a href="{{ url_for('admin_dashboard') }}" class="admin-bottom-nav__item {{ 'admin-bottom-nav__item--active' if request.endpoint == 'admin_dashboard' }}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+    <span>Dashboard</span>
+  </a>
+  {% if admin_can('orders.view') %}
+  <a href="{{ url_for('admin_orders') }}" class="admin-bottom-nav__item {{ 'admin-bottom-nav__item--active' if 'admin_order' in request.endpoint }}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+    <span>Orders{% if pending_count is defined and pending_count > 0 %}<span class="admin-bottom-nav__badge">{{ pending_count }}</span>{% endif %}</span>
+  </a>
+  {% endif %}
+  {% if admin_can('products.edit') %}
+  <a href="{{ url_for('admin_products') }}" class="admin-bottom-nav__item {{ 'admin-bottom-nav__item--active' if 'admin_product' in request.endpoint }}">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7l-8-4-8 4 8 4z"></path><path d="M4 7v10l8 4 8-4V7"></path></svg>
+    <span>Products</span>
+  </a>
+  {% endif %}
+  <button class="admin-bottom-nav__item admin-bottom-nav__menu-btn menu" id="adminMenuBtn" onclick="toggleAdminMenu()" aria-label="Toggle menu">
+    <svg width="22" height="22" viewBox="0 0 100 100">
+      <path class="line line1" d="M 20,29.000046 H 80.000231 C 80.000231,29.000046 94.498839,28.817352 94.532987,66.711331 94.543142,77.980673 90.966081,81.670246 85.259173,81.668997 79.552261,81.667751 75.000211,74.999942 75.000211,74.999942 L 25.000021,25.000058" />
+      <path class="line line2" d="M 20,50 H 80" />
+      <path class="line line3" d="M 20,70.999954 H 80.000231 C 80.000231,70.999954 94.498839,71.182648 94.532987,33.288669 94.543142,22.019327 90.966081,18.329754 85.259173,18.331003 79.552261,18.332249 75.000211,25.000058 75.000211,25.000058 L 25.000021,74.999942" />
+    </svg>
+    <span>Menu</span>
+  </button>
+</nav>
+  
+<script nonce="{{ csp_nonce }}">
+function toggleAdminMenu() {
+    document.getElementById('adminSidebar').classList.toggle('admin-sidebar--open');
+    document.getElementById('adminMenuBtn').classList.toggle('opened');
+  }
+  function closeAdminMenu() {
+    document.getElementById('adminSidebar').classList.remove('admin-sidebar--open');
+    document.getElementById('adminMenuBtn').classList.remove('opened');
+  }
+</script>
+
+<script defer src="{{ url_for('static', filename='js/admin-offline.js') }}?v={{ static_version }}"></script>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+
+  /* ── Service worker registration ── */
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw-admin.js', { scope: '/' }).then(function (reg) {
+      console.log('[SW] Registered:', reg.scope);
+
+      /* ── Push subscription (Web Push) ── */
+      if ('PushManager' in window) {
+        reg.pushManager.getSubscription().then(function (sub) {
+          if (sub) {
+            // Already subscribed — keep the server in sync
+            sendSubscriptionToServer(sub);
+          }
+        });
+
+        /* Expose subscription function for the toggle UI */
+        window.__subscribePush = function () {
+          return reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: '{{ config.VAPID_PUBLIC_KEY }}',
+          }).then(function (sub) {
+            return sendSubscriptionToServer(sub);
+          }).catch(function (err) {
+            console.error('[SW] Push sub failed:', err);
+            throw err;
+          });
+        };
+
+        window.__unsubscribePush = function () {
+          return reg.pushManager.getSubscription().then(function (sub) {
+            if (sub) {
+              return sub.unsubscribe();
+            }
+          });
+        };
+      }
+    }).catch(function (err) {
+      console.log('[SW] Registration failed:', err);
+    });
+  }
+
+  function sendSubscriptionToServer(subscription) {
+    var subJson = subscription.toJSON();
+    fetch('/admin/api/push-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscription: subJson,
+        csrf_token: '{{ csrf_token() }}',
+      }),
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      if (data.ok) {
+        console.log('[SW] Push subscription saved');
+      } else {
+        console.warn('[SW] Push subscription failed:', data.error);
+      }
+    }).catch(function (err) {
+      console.warn('[SW] Push subscription send error:', err);
+    });
+  }
+})();
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

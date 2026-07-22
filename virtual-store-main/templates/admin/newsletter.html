@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% block title %}Newsletter List{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Newsletter Subscribers</h1>
+  <a href="{{ url_for('admin_newsletter_export') }}" class="btn btn--outline btn--sm">Download CSV</a>
+</div>
+<p class="help-text">
+  Everyone who signed up on your homepage. Download the list to send updates using any email tool
+  (Mailchimp, Gmail, WhatsApp Business, etc.) — this site doesn't send marketing emails itself.
+</p>
+
+{% if subscribers %}
+<table class="table">
+  <tr><th>Email</th><th>Subscribed</th></tr>
+  {% for s in subscribers %}
+  <tr>
+    <td>{{ s.email }}</td>
+    <td>{{ s.created_at }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty-state">No subscribers yet.</div>
+{% endif %}
+{% endblock %}

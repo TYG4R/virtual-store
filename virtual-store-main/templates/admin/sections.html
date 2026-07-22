@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+{% block title %}Homepage Sections{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Homepage Sections</h1></div>
+<p class="help-text">
+  Sections appear on your homepage, in order, between your headline and your product catalogue.
+  Use these for things like "Our Story", "Why Choose Us", or "How It Works".
+</p>
+
+{% for s in sections %}
+<div class="card-box">
+  <div class="sortable-row" style="justify-content:space-between; margin-bottom:1rem;">
+    <div class="sortable-row">
+      <form method="POST" action="{{ url_for('admin_sections_move', section_id=s.id, direction='up') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--outline btn--sm" type="submit" {{ 'disabled' if loop.first }}>↑</button>
+      </form>
+      <form method="POST" action="{{ url_for('admin_sections_move', section_id=s.id, direction='down') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn--outline btn--sm" type="submit" {{ 'disabled' if loop.last }}>↓</button>
+      </form>
+      <strong>{{ s.title }}</strong>
+      {% if not s.visible %}<span class="badge badge--cancelled">Hidden</span>{% endif %}
+    </div>
+    <form method="POST" action="{{ url_for('admin_sections_delete', section_id=s.id) }}"
+          onsubmit="return confirm('Delete this section? This cannot be undone.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn--danger btn--sm" type="submit">Delete</button>
+    </form>
+  </div>
+  <form method="POST" action="{{ url_for('admin_sections_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="id" value="{{ s.id }}">
+    <div class="field">
+      <label>Title</label>
+      <input type="text" name="title" value="{{ s.title }}" required>
+    </div>
+    <div class="field">
+      <label>Content</label>
+      <textarea name="content" style="min-height:120px;">{{ s.content }}</textarea>
+    </div>
+    <div class="field field--checkbox">
+      <input type="checkbox" name="visible" id="visible-{{ s.id }}" {{ 'checked' if s.visible }}>
+      <label for="visible-{{ s.id }}" style="margin:0;">Show on homepage</label>
+    </div>
+    <button class="btn btn--outline btn--sm" type="submit">Save Section</button>
+  </form>
+</div>
+{% endfor %}
+
+<div class="card-box">
+  <h3>Add New Section</h3>
+  <form method="POST" action="{{ url_for('admin_sections_save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label>Title</label>
+      <input type="text" name="title" placeholder="e.g. Our Story" required>
+    </div>
+    <div class="field">
+      <label>Content</label>
+      <textarea name="content" placeholder="Write the section text here..."></textarea>
+    </div>
+    <div class="field field--checkbox">
+      <input type="checkbox" name="visible" id="visible-new" checked>
+      <label for="visible-new" style="margin:0;">Show on homepage</label>
+    </div>
+    <button class="btn" type="submit">Add Section</button>
+  </form>
+</div>
+{% endblock %}

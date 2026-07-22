@@ -1,0 +1,29 @@
+{% extends "admin/base.html" %}
+{% block title %}Coupon Usage History{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Coupon Usage History</h1>
+  <a href="{{ url_for('admin_coupons') }}" class="btn btn--outline btn--sm">← Manage Coupons</a>
+</div>
+
+{% if usage %}
+<table class="table">
+  <tr><th>Date</th><th>Coupon Code</th><th>Order</th><th>Customer</th><th>Discount</th></tr>
+  {% for u in usage %}
+  <tr>
+    <td>{{ u.used_at[:16] if u.used_at else '—' }}</td>
+    <td><strong>{{ u.code or '—' }}</strong></td>
+    <td>
+      {% if u.order_ref %}
+      <a href="{{ url_for('admin_order_detail', order_id=u.order_id) }}">{{ u.order_ref }}</a>
+      {% else %}—{% endif %}
+    </td>
+    <td>{{ u.customer_email or '—' }}</td>
+    <td>₹{{ "{:,}".format(u.discount_amount) if u.discount_amount else 0 }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="empty-state">No coupons have been used yet.</div>
+{% endif %}
+{% endblock %}

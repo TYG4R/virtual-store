@@ -1,0 +1,13 @@
+# Render deployment configuration — pre-declares the persistent disk so it
+# can't be accidentally forgotten on redeploy (Issue #11 from audit).
+services:
+  - type: web
+    name: virtual-store
+    env: python
+    buildCommand: rm -rf .venv && python3 -m venv .venv && . .venv/bin/activate && pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+    startCommand: gunicorn app:app -c gunicorn.conf.py
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/instance
+      sizeGB: 1

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Track Your Order — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container form-card">
+
+    {% if error %}
+    <div class="flash flash--error" style="text-align:center; margin-bottom:1.5rem;">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    {% if prefill_ref and order and order.status in ('paid', 'processing') %}
+    <div class="flash flash--success" style="text-align:center; margin-bottom:2rem;">
+      {% if order.payment_mode == 'test' %}
+        🧪 Testing mode order placed. No payment was collected, but your order is now in the system and notifications should still work.
+      {% else %}
+        🎉 Thank you! Your payment was received. We're working on your order.
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="section-head" style="margin-bottom:2rem;">
+      <span class="eyebrow">Order Status</span>
+      <h2>Track Your Order</h2>
+    </div>
+
+    <form method="POST" action="{{ url_for('track_order') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>Order Reference</label>
+        <input type="text" name="order_ref" placeholder="ORD-XXXXXX" required
+               value="{{ request.form.get('order_ref', prefill_ref) }}">
+      </div>
+      <div class="field">
+        <label>Email used at checkout</label>
+        <input type="email" name="email" placeholder="you@example.com" required
+               value="{{ request.form.get('email', prefill_email) }}">
+      </div>
+      <button class="btn btn--full" type="submit">Check Status</button>
+    </form>
+
+    {% if searched %}
+      <div class="divider"></div>
+      {% if order %}
+
+        {# ── Order Details ── #}
+        <div class="track-order__details">
+          <h3 style="font-family:var(--serif);">Order {{ order.order_ref }}
+            {% if order.status not in ['created', 'cancelled'] %}
+              <a href="{{ url_for('public_order_invoice', order_ref=order.order_ref) }}?email={{ order.customer_email | urlencode }}" class="btn btn--outline btn--sm" style="margin-left:0.5rem;vertical-align:middle;">📄 Invoice</a>
+            {% endif %}
+          </h3>
+          {% if order_items %}
+          <ul class="track-order__items">
+            {% for it in order_items %}
+            <li>
+              <span class="track-order__item-name">{{ it.product_name }}</span>
+              <span class="track-order__item-qty">× {{ it.quantity }}</span>
+              <span class="track-order__item-price">{{ settings.currency_symbol }}{{ "{:,}".format(it.line_total) }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          <div class="track-order__summary">
+            <div class="track-order__summary-row">
+              <span>Subtotal</span>
+              <span>{{ settings.currency_symbol }}{{ "{:,}".format(order.amount + order.discount_amount) }}</span>
+            </div>
+            {% if order.discount_amount > 0 %}
+            <div class="track-order__summary-row track-order__summary-row--discount">
+              <span>Discount{% if order.coupon_code %} ({{ order.coupon_code }}){% endif %}</span>
+              <span>-{{ settings.currency_symbol }}{{ "{:,}".format(order.discount_amount) }}</span>
+            </div>
+            {% endif %}
+            <div class="track-order__summary-row track-order__summary-row--total">
+              <span>Total Paid</span>
+              <span>{{ settings.currency_symbol }}{{ "{:,}".format(order.amount) }}</span>
+            </div>
+          </div>
+        </div>
+
+        {# ── Visual Progress Stepper ── #}
+        {#
+          Status progression:
+            created    → Order Placed      (step 0)
+            paid       → Payment Confirmed  (step 1)
+            processing → Processing         (step 2)
+            delivered  → Completed          (step 3)
+            cancelled  → terminal (error)
+            failed     → terminal (error)
+        #}
+        {% set status_map = {'created': 0, 'paid': 1, 'processing': 2, 'delivered': 3} %}
+        {% set current_step = status_map.get(order.status, -1) %}
+        {% set is_terminal = current_step < 0 %}
+
+        {% set steps = [
+          {'label': 'Order Placed',   'key': 'created',    'icon': '🛒'},
+          {'label': 'Payment Confirmed', 'key': 'paid',     'icon': '✓'},
+          {'label': 'Processing',     'key': 'processing', 'icon': '⚙'},
+          {'label': 'Completed',      'key': 'delivered',  'icon': '🏁'},
+        ] %}
+
+        {% if is_terminal %}
+          {# ── Cancelled or Failed ── #}
+          <div class="track-stepper track-stepper--terminal">
+            {% if order.status == 'cancelled' %}
+            <div class="track-stepper__step track-stepper__step--failed">
+              <div class="track-stepper__dot">
+                <span class="track-stepper__icon">✕</span>
+              </div>
+              <div class="track-stepper__content">
+                <strong class="track-stepper__label">Cancelled</strong>
+                {% if order.delivered_at %}
+                <span class="track-stepper__date">{{ order.delivered_at[:10] }}</span>
+                {% endif %}
+                <p class="track-stepper__desc">This order was cancelled. Please contact us if you have questions.</p>
+              </div>
+            </div>
+            {% else %}
+            <div class="track-stepper__step track-stepper__step--failed">
+              <div class="track-stepper__dot">
+                <span class="track-stepper__icon">!</span>
+              </div>
+              <div class="track-stepper__content">
+                <strong class="track-stepper__label">Payment Failed</strong>
+                <p class="track-stepper__desc">Payment for this order could not be verified. Please try again or contact us.</p>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        {% else %}
+          {# ── Normal flow stepper ── #}
+          <div class="track-stepper">
+            {% for step in steps %}
+            {% set step_idx = loop.index0 %}
+            {% set is_done = step_idx < current_step %}
+            {% set is_active = step_idx == current_step %}
+            {% set is_future = step_idx > current_step %}
+            <div class="track-stepper__step
+                        {% if is_done %}track-stepper__step--done{% endif %}
+                        {% if is_active %}track-stepper__step--active{% endif %}
+                        {% if is_future %}track-stepper__step--future{% endif %}">
+              <div class="track-stepper__connector" {% if loop.first %}style="display:none"{% endif %}></div>
+              <div class="track-stepper__dot">
+                {% if is_done %}
+                  <span class="track-stepper__check">✓</span>
+                {% else %}
+                  <span class="track-stepper__num">{{ loop.index }}</span>
+                {% endif %}
+              </div>
+              <div class="track-stepper__content">
+                <strong class="track-stepper__label">{{ step.label }}</strong>
+                {% if is_done and step.key == 'created' and order.created_at %}
+                  <span class="track-stepper__date">{{ order.created_at[:10] }}</span>
+                {% elif is_done and step.key == 'paid' and order.paid_at %}
+                  <span class="track-stepper__date">{{ order.paid_at[:10] }}</span>
+                {% elif is_done and step.key == 'delivered' and order.delivered_at %}
+                  <span class="track-stepper__date">{{ order.delivered_at[:10] }}</span>
+                {% elif is_active and step.key == 'paid' and order.payment_mode == 'test' %}
+                  <p class="track-stepper__desc" style="font-size:0.82rem; color:var(--grey-500); margin-top:0.3rem;">Testing mode — no live payment collected.</p>
+                {% elif is_active and step.key == 'processing' %}
+                  <p class="track-stepper__desc">Your order is being prepared and will be completed shortly.</p>
+                {% elif is_active and step.key == 'delivered' %}
+                  <p class="track-stepper__desc">Your order has been delivered. Check the delivery details below.</p>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {# ── Delivery / Download Block ── #}
+        {% if order.status == 'delivered' %}
+          <div style="margin-top:1.5rem;">
+            {% import '_delivery_block.html' as dblock with context %}
+            {{ dblock.delivery_block(order, settings, order_items, product_map, delivery_content_type) }}
+          </div>
+          <p style="margin-top:1rem;font-size:0.82rem;color:var(--grey-500);">
+            ⓘ Download links expire after 72 hours and can be re-downloaded up to 5 times. If yours has expired, contact us for a fresh link.
+          </p>
+          {% if order.delivery_message %}
+          <form method="POST" action="{{ url_for('track_order_resend', order_ref=order.order_ref) }}" style="margin-top:1rem;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="email" value="{{ order.customer_email }}">
+            <button class="btn btn--outline btn--sm" type="submit">📧 Resend Delivery Email</button>
+          </form>
+          {% endif %}
+          <p style="margin-top:1.5rem;"><a href="{{ url_for('home') }}#products" class="btn btn--outline btn--sm">Continue Shopping</a></p>
+        {% endif %}
+
+        {# ── Digital Download prompt for paid/processing orders ── #}
+        {% if order.status in ('paid', 'processing') and delivery_content_type == 'file' %}
+          <div style="margin-top:1.5rem; padding:1rem; border:1px dashed var(--accent); border-radius:12px; text-align:center;">
+            <p style="font-size:0.88rem; margin-bottom:0.5rem;">
+              <strong>⏳ Waiting for delivery</strong>
+            </p>
+            <p style="font-size:0.82rem; color:var(--grey-500); margin-bottom:0;">
+              Your digital product will be available here once the order is completed. You'll also receive a notification.
+            </p>
+          </div>
+        {% endif %}
+
+        {# ── Payment not yet received ── #}
+        {% if order.status == 'created' %}
+        <div style="margin-top:1.5rem;padding:1rem;border:1px dashed var(--border);border-radius:12px;">
+          <p style="font-size:0.85rem;margin:0 0 0.5rem;"><strong>Payment not yet received</strong></p>
+          <p style="font-size:0.82rem;color:var(--grey-500);margin-bottom:0.75rem;">This order hasn't been paid yet. You can cancel it if you changed your mind.</p>
+          <button class="btn btn--outline btn--sm" onclick="cancelUnpaidOrder('{{ order.order_ref }}', '{{ order.customer_email }}')" style="color:#e53e3e;border-color:#e53e3e;">Cancel Unpaid Order</button>
+          <p id="cancelMsg" style="font-size:0.85rem;margin-top:0.5rem;display:none;"></p>
+        </div>
+        {% endif %}
+
+      {% else %}
+        {# ── No order found ── #}
+        <div class="empty-state">
+          <h3>No order found</h3>
+          <p>We couldn't find an order matching that reference and email. Double-check what you entered — the order reference is usually printed on your payment confirmation email.</p>
+          <a href="{{ url_for('home') }}#products" class="btn btn--outline">Browse Products</a>
+        </div>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/delivery.js') }}?v={{ static_version }}"></script>
+<script nonce="{{ csp_nonce }}">
+function cancelUnpaidOrder(orderRef, email) {
+  if (!confirm('Cancel this unpaid order? This cannot be undone.')) return;
+  var msgEl = document.getElementById('cancelMsg');
+  msgEl.style.display = 'none';
+  fetch('/api/order/' + orderRef + '/cancel-unpaid', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+    body: JSON.stringify({email: email}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.success) {
+      msgEl.textContent = 'Order cancelled.';
+      msgEl.style.display = 'block'; msgEl.style.color = '#4caf50';
+      setTimeout(function() { location.reload(); }, 1500);
+    } else {
+      msgEl.textContent = data.error;
+      msgEl.style.display = 'block'; msgEl.style.color = '#cc5555';
+    }
+  });
+}
+</script>
+{% endblock %}

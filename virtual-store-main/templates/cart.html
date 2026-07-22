@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% from "_skeleton.html" import skeleton_cards %}
+{% block title %}Your Cart — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+    <div class="container" style="max-width:900px;">
+      <div class="section-head reveal" style="margin-bottom:2rem;">
+        <span class="eyebrow">Your Selection</span>
+        <h2>Your Cart</h2>
+      </div>
+
+      <div id="cartContent" data-loading="false">
+        <div id="cartSkeleton" style="display:none;">
+          <div class="grid" style="grid-template-columns:1fr;">
+            {{ skeleton_cards(3) }}
+          </div>
+        </div>
+        {% if items %}
+    <div class="cart-layout">
+      <div class="cart-items">
+        {% for it in items %}
+        {% set cq = it.product.quantity %}
+        {% set max_qty = cq if (cq is not none and cq > 0 and cq < 99) else 99 %}
+        <div class="cart-item">
+          <div class="cart-item__image">
+            {% if product_images[it.product.id] %}
+              <img src="{{ url_for('uploaded_file', filename=product_images[it.product.id]) }}" alt="{{ it.product.name }}" width="90" height="112" loading="lazy">
+            {% else %}
+              <div class="card__placeholder" style="height:100%;">{{ it.product.name[0]|upper }}</div>
+            {% endif %}
+          </div>
+          <div class="cart-item__info">
+            <a href="{{ url_for('product_detail', slug=it.product.slug) }}" class="cart-item__name">{{ it.product.name }}</a>
+            <div class="cart-item__price">{{ settings.currency_symbol }}{{ "{:,}".format(it.product.price) }} each</div>
+            {% if cq is not none and cq > 0 and cq <= 3 %}
+              <div class="cart-item__stock-warn">Only {{ cq }} left — order soon</div>
+            {% endif %}
+            <form method="POST" action="{{ url_for('cart_update') }}" class="cart-item__qty-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="product_id" value="{{ it.product.id }}">
+              <div class="qty-selector">
+                <button type="button" onclick="this.nextElementSibling.stepDown(); this.form.submit();" aria-label="Decrease quantity">−</button>
+                <input type="number" name="quantity" value="{{ it.quantity }}" min="1" max="{{ max_qty }}" aria-label="Quantity"
+                       onchange="this.form.submit();">
+                <button type="button" onclick="this.previousElementSibling.stepUp(); this.form.submit();" aria-label="Increase quantity">+</button>
+              </div>
+            </form>
+          </div>
+          <div class="cart-item__total">{{ settings.currency_symbol }}{{ "{:,}".format(it.line_total) }}</div>
+          <form method="POST" action="{{ url_for('cart_remove', product_id=it.product.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="cart-item__remove" aria-label="Remove {{ it.product.name }} from cart">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="cart-summary">
+        <h3>Order Summary</h3>
+        <div class="cart-summary__row">
+          <span>Subtotal</span>
+          <span id="cartSubtotalDisplay">{{ settings.currency_symbol }}{{ "{:,}".format(subtotal) }}</span>
+          <span id="cartDiscountedDisplay" style="display:none; font-weight:600;"></span>
+        </div>
+
+        <div class="field">
+          <label>Coupon Code (optional)</label>
+          <div style="display:flex; gap:0.6rem;">
+            <input type="text" id="cartCouponCode" placeholder="e.g. WELCOME10" style="text-transform:uppercase;">
+            <button type="button" class="btn btn--outline btn--sm" style="flex-shrink:0;" onclick="applyCartCoupon()">Apply</button>
+          </div>
+          <p id="cartCouponMessage" style="margin-top:0.5rem; font-size:0.82rem; display:none;"></p>
+        </div>
+
+        <div class="auto-coupon-banner" id="autoCouponBanner" style="display:none;"></div>
+
+        <div class="divider"></div>
+
+        {% if not customer_logged_in %}
+        <p class="auth-inline-hint">
+          <a href="#" onclick="openAuthModal(); return false;">Sign in with your phone</a> for instant checkout, or continue as a guest below.
+        </p>
+        {% endif %}
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" id="cartBuyerName" placeholder="Your name" value="{{ current_customer_name }}">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="cartBuyerEmail" placeholder="you@example.com" value="{{ current_customer_email }}">
+        </div>
+        <div class="field">
+          <label>Phone (optional)</label>
+          <input type="tel" id="cartBuyerPhone" placeholder="For faster support" value="{{ current_customer_phone }}">
+        </div>
+
+        <button class="btn btn--full" id="cartCheckoutBtn" data-base-price="{{ subtotal }}" data-currency="{{ settings.currency_symbol }}"
+                {% if checkout_available %}onclick="startCartCheckout()"{% else %}disabled{% endif %}>
+          {% if checkout_available %}{% if not test_checkout_mode %}Checkout — {{ settings.currency_symbol }}{{ "{:,}".format(subtotal) }}{% else %}Place Test Order — {{ settings.currency_symbol }}{{ "{:,}".format(subtotal) }}{% endif %}{% else %}Checkout temporarily disabled{% endif %}
+        </button>
+        <p id="cartError" style="color:#7a2222; margin-top:0.75rem; display:none;"></p>
+        <p id="cartCheckoutError" style="color:#7a2222; margin-top:0.75rem; display:none;"></p>
+        {% if checkout_available %}
+        <p style="margin-top:0.9rem; font-size:0.78rem; color:var(--grey-500); line-height:1.5;">
+          By placing this order, you agree to our
+          <a href="{{ url_for('terms_of_service') }}" style="color:var(--grey-600); text-decoration:underline; text-underline-offset:2px;">Terms of Service</a>
+          and <a href="{{ url_for('refund_policy') }}" style="color:var(--grey-600); text-decoration:underline; text-underline-offset:2px;">Refund Policy</a>
+          and acknowledge our
+          <a href="{{ url_for('privacy_policy') }}" style="color:var(--grey-600); text-decoration:underline; text-underline-offset:2px;">Privacy Policy</a>.
+        </p>
+        {% endif %}
+        {% if not checkout_available %}
+        <p style="margin-top:0.9rem; font-size:0.82rem; color:var(--grey-500);">Checkout is temporarily unavailable right now. You can keep browsing, update your cart, and come back later.</p>
+        {% elif test_checkout_mode %}
+        <p style="margin-top:0.9rem; font-size:0.82rem; color:var(--grey-500);">Testing mode is active. You can still place your order and trigger notifications without paying through Razorpay.</p>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('cart_clear') }}" style="margin-top:1rem;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn--outline btn--sm btn--full">Clear Cart</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-state__icon">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 7h14l-1.5 9a2 2 0 0 1-2 1.7H8.5a2 2 0 0 1-2-1.7L5 7z"></path><path d="M5 7L4 3H2"></path><circle cx="9" cy="21" r="1"></circle><circle cx="17" cy="21" r="1"></circle></svg>
+      </div>
+      <h3>Your cart is empty</h3>
+      <p>Browse the catalogue to find something you'll love.</p>
+      <a href="{{ url_for('home') }}#products" class="btn btn--outline">Browse the Catalogue</a>
+    </div>
+    {% endif %}
+    </div> <!-- /#cartContent -->
+  </div>
+</section>
+
+{% if checkout_available %}{% if payment_gateway_ready %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>{% endif %}
+<script nonce="{{ csp_nonce }}">const RAZORPAY_KEY = "{{ razorpay_key }}";</script>
+<script src="{{ url_for('static', filename='js/cart_checkout.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auto_coupons.js') }}"></script>
+{% endif %}
+<script nonce="{{ csp_nonce }}">
+// Cart skeleton: show briefly during page transitions for perceived speed
+(function() {
+  var skel = document.getElementById('cartSkeleton');
+  var content = document.getElementById('cartContent');
+  if (!skel || !content) return;
+  if (document.referrer && document.referrer !== window.location.href) {
+    skel.style.display = '';
+    content.style.display = 'none';
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        skel.style.display = 'none';
+        content.style.display = '';
+      }, 400);
+    });
+  }
+})();
+</script>
+{% endblock %}

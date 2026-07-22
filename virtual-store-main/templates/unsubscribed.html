@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Unsubscribed — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width:520px;text-align:center;padding:4rem 0;">
+    <div style="margin-bottom:2rem;">
+      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+    </div>
+    <h2>You're unsubscribed</h2>
+    <p style="color:var(--grey-500);margin:1rem 0 2rem;">You've been removed from our mailing list. No more emails from us — unless you choose to subscribe again.</p>
+    <a href="{{ url_for('home') }}" class="btn">Back to Store</a>
+  </div>
+</section>
+{% endblock %}

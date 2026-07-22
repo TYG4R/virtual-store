@@ -1,0 +1,246 @@
+{% extends "admin/base.html" %}
+{% block title %}Order {{ order.order_ref }}{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Order {{ order.order_ref }}</h1>
+  <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+    <a href="{{ url_for('track_order') }}?order_ref={{ order.order_ref }}&email={{ order.customer_email | urlencode }}" target="_blank" class="btn btn--outline btn--sm">👁 Customer View</a>
+    <a href="{{ url_for('admin_orders') }}" class="btn btn--outline btn--sm">← Back to Orders</a>
+  </div>
+</div>
+
+<div class="card-box">
+  <h3>Details</h3>
+  {% if order_items %}
+    <p><strong>Items:</strong></p>
+    <table class="table" style="margin-bottom:1rem;">
+      <tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr>
+      {% for it in order_items %}
+      <tr>
+        <td>{{ it.product_name }}</td>
+        <td>{{ it.quantity }}</td>
+        <td>₹{{ "{:,}".format(it.unit_price) }}</td>
+        <td>₹{{ "{:,}".format(it.line_total) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p><strong>Product:</strong> {{ order.product_name }}</p>
+  {% endif %}
+  <p><strong>Amount:</strong> ₹{{ "{:,}".format(order.amount) }}</p>
+  {% if order.coupon_code %}
+  <p><strong>Coupon Used:</strong> {{ order.coupon_code }} (saved customer ₹{{ order.discount_amount }})</p>
+  {% endif %}
+  <p><strong>Status:</strong> <span class="badge badge--{{ order.status }}">{{ order.status }}</span>{% if order.payment_mode == 'test' %} <span class="badge badge--test">testing mode</span>{% endif %}
+  {% if order.status not in ['created', 'cancelled'] %}
+    <a href="{{ url_for('admin_order_invoice', order_id=order.id) }}" class="btn btn--sm btn--outline" style="margin-left:0.5rem;">📄 Download Invoice</a>
+  {% endif %}
+  </p>
+  <p><strong>Customer:</strong> {{ order.customer_name }}</p>
+  <p><strong>Email:</strong> {{ order.customer_email }}</p>
+  <p><strong>Phone:</strong> {{ order.customer_phone or "—" }}</p>
+  <p><strong>Ordered:</strong> {{ order.created_at }}</p>
+  {% if order.paid_at %}<p><strong>Paid:</strong> {{ order.paid_at }}</p>{% endif %}
+  {% if order.delivered_at %}<p><strong>Delivered:</strong> {{ order.delivered_at }}</p>{% endif %}
+</div>
+
+{% if order.status == 'paid' %}
+<div class="card-box">
+  <h3>Deliver This Order</h3>
+  <p class="help-text" style="margin-top:0;">
+    Write whatever the customer needs to receive their product — a download link, an activation code,
+    login details, or instructions. This will be shown on their order tracking page{% if email_enabled %} and emailed to them{% endif %}.
+  </p>
+  {% if product %}
+  <div class="card-box" style="margin-bottom:1rem;border:1px dashed var(--grey-400);">
+    <h4 style="margin-top:0;">Preview: Customer Will See</h4>
+    <div id="deliveryPreview" style="border:1px solid var(--grey-200);padding:1rem;border-radius:var(--radius);">
+      <p style="opacity:0.5;font-size:0.85rem;text-align:center;">Type a message above, then click "Update Preview"</p>
+    </div>
+    <button type="button" class="btn btn--sm btn--outline" style="margin-top:0.5rem;" onclick="updateDeliveryPreview()">Update Preview</button>
+  </div>
+  {% endif %}
+  <form method="POST" action="{{ url_for('admin_order_deliver', order_id=order.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label>Delivery Message</label>
+      {% if product_files %}
+      <div style="margin-bottom:0.5rem;padding:0.5rem;border:1px dashed var(--grey-400);border-radius:8px;font-size:0.82rem;">
+        <strong style="display:block;margin-bottom:0.3rem;">Product Files</strong>
+        {% for f in product_files %}
+        {% set dl_url = url_for('admin_product_file_download', file_id=f.id, _external=True) %}
+        <div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.2rem;">
+          <span style="flex:1;">📎 {{ f.original_name }}</span>
+          <button type="button" class="btn btn--sm btn--outline" onclick="var i=document.getElementById('dlInput{{ f.id }}'); i.select(); i.setSelectionRange(0,99999); navigator.clipboard.writeText(i.value).then(function(){this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'}.bind(this),2000)}.bind(this)); return false;">Copy</button>
+          <input id="dlInput{{ f.id }}" type="text" value="{{ dl_url }}" readonly style="position:absolute;left:-9999px;width:1px;" aria-hidden="true">
+        </div>
+        {% endfor %}
+        <button type="button" class="btn btn--sm btn--outline" style="margin-top:0.3rem;" onclick="fillDeliveryWithFileLinks()">📋 Auto-fill message with file links</button>
+      </div>
+      {% endif %}
+      <div style="margin-bottom:0.3rem;display:flex;gap:0.3rem;flex-wrap:wrap;">
+        <button type="button" class="btn btn--sm btn--outline" onclick="insertFormat(document.getElementById('deliveryMessageInput'), '**', '**')"><strong>B</strong></button>
+        <button type="button" class="btn btn--sm btn--outline" onclick="insertFormat(document.getElementById('deliveryMessageInput'), '*', '*')"><em>I</em></button>
+        <button type="button" class="btn btn--sm btn--outline" onclick="insertFormat(document.getElementById('deliveryMessageInput'), '`', '`')"><code>&lt;/&gt;</code></button>
+        <button type="button" class="btn btn--sm btn--outline" onclick="insertFormat(document.getElementById('deliveryMessageInput'), '', '\n')">↩ Line</button>
+      </div>
+      <textarea name="delivery_message" id="deliveryMessageInput" style="min-height:140px;" required placeholder="e.g. Here is your download link: ...&#10;&#10;You can use **bold**, *italic*, `code`, and raw URLs (they auto-link)."></textarea>
+      <div id="deliveryPreview2" class="card-box" style="margin-top:0.5rem;padding:0.75rem;display:none;">
+        <h4 style="margin:0 0 0.3rem;font-size:0.82rem;color:var(--grey-500);">Preview</h4>
+        <div id="deliveryPreviewContent" style="white-space:pre-line;"></div>
+      </div>
+    </div>
+    {% if product %}
+    <div class="field">
+      <label>Delivery Content Type</label>
+      <select name="delivery_content_type_override" style="max-width:300px;">
+        <option value="">Auto-detect ({{ product.delivery_content_type or 'file' }})</option>
+        <option value="file" {% if product.delivery_content_type == 'file' %}selected{% endif %}>📎 File</option>
+        <option value="license_key" {% if product.delivery_content_type == 'license_key' %}selected{% endif %}>🔑 License Key</option>
+        <option value="access_link" {% if product.delivery_content_type == 'access_link' %}selected{% endif %}>🔗 Access Link</option>
+        <option value="instructions" {% if product.delivery_content_type == 'instructions' %}selected{% endif %}>📄 Instructions</option>
+      </select>
+    </div>
+    {% endif %}
+    <button class="btn" type="submit">Mark as Delivered & Notify Customer</button>
+  </form>
+  {% if product %}
+  <script nonce="{{ csp_nonce }}">
+  function insertFormat(el, before, after) {
+    var start = el.selectionStart, end = el.selectionEnd;
+    var text = el.value;
+    el.value = text.slice(0, start) + before + text.slice(start, end) + after + text.slice(end);
+    el.focus();
+    el.selectionStart = start + before.length;
+    el.selectionEnd = end + before.length;
+    el.dispatchEvent(new Event('input'));
+  }
+
+  function renderSimpleMarkdown(text) {
+    if (!text) return '';
+    var html = escapeHtml(text);
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  function updateDeliveryPreview() {
+    var msg = document.getElementById('deliveryMessageInput').value;
+    var preview = document.getElementById('deliveryPreview2');
+    var content = document.getElementById('deliveryPreviewContent');
+    if (msg) {
+      content.innerHTML = renderSimpleMarkdown(msg);
+      preview.style.display = 'block';
+    } else {
+      preview.style.display = 'none';
+    }
+  }
+  function escapeHtml(s) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(s));
+    return div.innerHTML;
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('deliveryMessageInput');
+    if (input) input.addEventListener('input', updateDeliveryPreview);
+  });
+  function fillDeliveryWithFileLinks() {
+    var links = [];
+    {% for f in product_files %}
+    {% set dl_url = url_for('admin_product_file_download', file_id=f.id, _external=True) %}
+    links.push('📎 {{ f.original_name }}: {{ dl_url }}');
+    {% endfor %}
+    var msg = document.getElementById('deliveryMessageInput');
+    msg.value = 'Here are your files:\\n\\n' + links.join('\\n');
+    updateDeliveryPreview();
+  }
+  </script>
+  {% endif %}
+</div>
+{% elif order.status == 'delivered' %}
+<div class="card-box">
+  <h3>{{ "Delivered Automatically" if order.auto_delivered else "Delivery Message Sent" }}</h3>
+  {% if order.auto_delivered %}
+  <p class="help-text" style="margin-top:0;">
+    This order matched one or more products set to "Automatic" delivery, so it was delivered
+    the instant payment was confirmed — no admin action was needed.
+  </p>
+  {% endif %}
+  <div style="white-space:pre-line;">{{ order.delivery_message | simple_markdown }}</div>
+</div>
+{% endif %}
+
+{% if order.status in ['created', 'paid'] %}
+<form method="POST" action="{{ url_for('admin_order_cancel', order_id=order.id) }}"
+      onsubmit="return confirm('Cancel this order?');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="field" style="margin-bottom:0.5rem;">
+    <label>Refund Amount (₹) <small style="font-weight:400;color:var(--grey-500);">— optional, max ₹{{ "{:,}".format(order.amount) }}</small></label>
+    <input type="number" name="refund_amount" min="0" max="{{ order.amount }}" step="1" value="0" style="max-width:180px;" placeholder="0 = no refund">
+  </div>
+  <button class="btn btn--danger btn--sm" type="submit">Cancel Order</button>
+</form>
+{% endif %}
+
+{% if order.status == 'cancelled' and order.refunded_amount and order.refunded_amount > 0 %}
+<div class="card-box" style="margin-top:1rem;border-left:3px solid #eab308;">
+  <h4>💸 Refund Recorded</h4>
+  <p><strong>Amount:</strong> ₹{{ "{:,}".format(order.refunded_amount) }}</p>
+  {% if order.refunded_at %}<p><strong>Refunded at:</strong> {{ order.refunded_at }}</p>{% endif %}
+</div>
+{% endif %}
+
+<div class="card-box" style="margin-top:2rem;">
+  <h3>Internal Notes</h3>
+  <div id="orderNotesList" style="margin-bottom:1rem;">
+    <p style="opacity:0.5;font-size:0.85rem;">Loading notes…</p>
+  </div>
+  <div style="display:flex;gap:0.5rem;">
+    <textarea id="orderNoteInput" style="flex:1;min-height:50px;" placeholder="Add a note…"></textarea>
+    <button class="btn btn--outline btn--sm" onclick="addOrderNote('{{ order.order_ref }}')">Save Note</button>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+function loadOrderNotes(orderRef) {
+  fetch('/api/order/' + orderRef + '/notes')
+    .then(function(r) { return r.json(); })
+    .then(function(notes) {
+      var el = document.getElementById('orderNotesList');
+      if (!notes || !notes.length) {
+        el.innerHTML = '<p style="opacity:0.5;font-size:0.85rem;margin-bottom:0;">No notes yet.</p>';
+        return;
+      }
+      el.innerHTML = notes.map(function(n) {
+        return '<div style="padding:0.5rem 0;border-bottom:1px solid var(--border);font-size:0.85rem;">' +
+          '<span style="color:var(--grey-500);font-size:0.75rem;">' + escHtml(n.created_at ? n.created_at.slice(0,16) : '') + '</span>' +
+          '<p style="margin:0.2rem 0 0;white-space:pre-wrap;">' + escHtml(n.note) + '</p></div>';
+      }).join('');
+    });
+}
+function addOrderNote(orderRef) {
+  var input = document.getElementById('orderNoteInput');
+  var note = input.value.trim();
+  if (!note) return;
+  fetch('/api/order/' + orderRef + '/notes/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+    body: JSON.stringify({note: note}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.success) {
+      input.value = '';
+      loadOrderNotes(orderRef);
+    }
+  });
+}
+function escHtml(s) {
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s || ''));
+  return div.innerHTML;
+}
+loadOrderNotes('{{ order.order_ref }}');
+</script>
+{% endblock %}

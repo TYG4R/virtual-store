@@ -1,0 +1,284 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>How's your store doing?</h1></div>
+
+{% if admin_role == 'master' or (admin_permissions and '*' in admin_permissions) %}
+<style>
+.master-splash[aria-hidden="true"] { display: none; }
+.master-splash:not([aria-hidden="true"]) {
+  animation: masterSplashFade 0.9s ease 3.5s forwards;
+}
+@keyframes masterSplashFade {
+  to { opacity: 0; pointer-events: none; }
+}
+.coupon-perf-table{width:100%;border-collapse:collapse;margin-top:.35rem}
+.coupon-perf-table th,.coupon-perf-table td{padding:.65rem .5rem;text-align:left;border-bottom:1px solid var(--border,#2a2a2a);font-size:.875rem}
+.coupon-perf-table th{font-weight:600;color:var(--muted,#888);text-transform:uppercase;letter-spacing:.04em;font-size:.7rem;border-bottom-color:var(--border,#2a2a2a)}
+.coupon-perf-table td:last-child,.coupon-perf-table th:last-child{text-align:right}
+.coupon-perf-table tr:last-child td{border-bottom:none}
+.coupon-perf-code{font-family:ui-monospace,SFMono-Regular,monospace;font-weight:600}
+.coupon-perf-note{font-size:.75rem;color:var(--muted,#888);margin-top:.5rem}
+</style>
+<div id="masterSplash" class="master-splash" aria-hidden="true">
+    <div class="master-splash__vignette"></div>
+    <div class="master-splash__content">
+      <div class="master-splash__mark" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+          <circle cx="12" cy="8.5" r="4"></circle>
+          <path d="M6 21c0-3.6 2.7-6 6-6s6 2.4 6 6"></path>
+        </svg>
+      </div>
+      <div class="master-splash__title" id="masterTyping"></div>
+      <div class="master-splash__sub" id="masterSub">Full master access — every control, unlocked</div>
+      <div class="master-splash__pill" id="masterPill">
+        <span>Continue to dashboard</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </div>
+    </div>
+  </div>
+  <script nonce="{{ csp_nonce }}">
+  (function(){
+    var shown = sessionStorage.getItem('masterSplashShown');
+    var splash = document.getElementById('masterSplash');
+    if (shown) { splash.style.display = 'none'; return; }
+    splash.removeAttribute('aria-hidden');
+
+    function dismiss() {
+      splash.classList.add('master-splash--fade');
+      setTimeout(function(){ splash.style.display = 'none'; sessionStorage.setItem('masterSplashShown','1'); }, 900);
+    }
+    splash.addEventListener('click', dismiss);
+
+    var hour = new Date().getHours();
+    var timeGreeting = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : hour < 21 ? 'Good evening' : 'Good night';
+    var adminName = {{ (session.get('admin_username') or '')|tojson }};
+    var text = adminName ? (timeGreeting + ', ' + adminName) : timeGreeting;
+
+    var tEl = document.getElementById('masterTyping');
+    var i = 0;
+    function typeChar() {
+      if (i < text.length) { tEl.textContent += text.charAt(i); i++; setTimeout(typeChar, 32 + Math.random()*24); }
+      else {
+        setTimeout(function(){
+          document.getElementById('masterSub').style.opacity = '1';
+          document.getElementById('masterSub').style.transform = 'translateY(0)';
+          document.getElementById('masterPill').style.opacity = '1';
+          document.getElementById('masterPill').style.transform = 'translateY(0)';
+        }, 200);
+      }
+    }
+    typeChar();
+    setTimeout(dismiss, 2800);
+    /* Backup: force-hide after 5s if JS timers failed (e.g. on mobile) */
+    setTimeout(function(){
+      if (splash.style.display !== 'none') {
+        splash.style.display = 'none';
+        sessionStorage.setItem('masterSplashShown','1');
+      }
+    }, 5000);
+  })();
+  </script>
+{% endif %}
+
+{% if test_checkout_mode %}
+<div class="flash flash--error">
+  <strong>Testing mode is on.</strong> Customers can still place orders, and your notifications/order tracking flow will run without Razorpay. Turn the gateway back on when you are ready to collect payments.
+</div>
+{% elif not razorpay_configured %}
+<div class="flash flash--error">
+  <strong>Payments aren't set up yet.</strong> Customers can browse but can't pay. Ask whoever manages your hosting to add your Razorpay keys to the site settings. This is a one-time thing.
+</div>
+{% endif %}
+
+{% if stats.pending > 0 %}
+<div class="admin-action-banner">
+  <div class="admin-action-banner__icon">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+  </div>
+  <div class="admin-action-banner__content">
+    <h3>You have {{ stats.pending }} order{{ 's' if stats.pending != 1 else '' }} to deliver</h3>
+    <p>Customers are waiting. Deliver them now to keep everyone happy.</p>
+  </div>
+  <a href="{{ url_for('admin_orders', status='paid') }}" class="btn btn--invert">Deliver Now →</a>
+</div>
+{% else %}
+<div class="admin-action-banner admin-action-banner--good">
+  <div class="admin-action-banner__icon">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+  </div>
+  <div class="admin-action-banner__content">
+    <h3>All caught up!</h3>
+    <p>No orders waiting to be delivered. Take a breather.</p>
+  </div>
+</div>
+{% endif %}
+
+{% if today_stats %}
+<div class="today-widget">
+  <div class="today-widget__header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+    <span>Today</span>
+  </div>
+  <div class="today-widget__stats">
+    <div class="today-widget__stat">
+      <span class="num">{{ settings.currency_symbol }}{{ "{:,}".format(today_stats.revenue) }}</span>
+      <span class="label">Revenue</span>
+    </div>
+    <div class="today-widget__stat">
+      <span class="num">{{ today_stats.orders }}</span>
+      <span class="label">Orders</span>
+    </div>
+    <div class="today-widget__stat">
+      <span class="num {% if today_stats.pending > 0 %}today-widget__pending{% endif %}">{{ today_stats.pending }}</span>
+      <span class="label">To Deliver</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+<div class="stat-grid">
+  <div class="stat-card stat-card--hero">
+    <div class="num">{{ settings.currency_symbol }}{{ "{:,}".format(stats.revenue) }}</div>
+    <div class="label">Total Revenue</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ stats.products }}</div>
+    <div class="label">Products Live</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ stats.customers }}</div>
+    <div class="label">Customers</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ stats.delivered }}</div>
+    <div class="label">Delivered</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ stats.pending }}</div>
+    <div class="label">Need Delivery</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ stats.cancelled }}</div>
+    <div class="label">Cancelled</div>
+  </div>
+  <div class="stat-card">
+    <div class="num">{{ stats.test_orders }}</div>
+    <div class="label">Test Orders</div>
+  </div>
+</div>
+
+<div class="dash-grid">
+  <div class="card-box">
+    <h3>Revenue — Last 14 Days</h3>
+    {% set max_total = (revenue_trend|map(attribute='total')|max) or 1 %}
+    <svg class="sparkline" viewBox="0 0 280 90" preserveAspectRatio="none" role="img" aria-label="Revenue trend for the last 14 days">
+      {% set points = [] %}
+      {% for d in revenue_trend %}
+        {% set x = (loop.index0 / (revenue_trend|length - 1)) * 280 if revenue_trend|length > 1 else 0 %}
+        {% set y = 85 - ((d.total / max_total) * 75 if max_total else 0) %}
+        {% if points.append((x, y)) %}{% endif %}
+      {% endfor %}
+      <polyline
+        fill="none" stroke="currentColor" stroke-width="2"
+        points="{% for p in points %}{{ '%.1f'|format(p[0]) }},{{ '%.1f'|format(p[1]) }}{% if not loop.last %} {% endif %}{% endfor %}" />
+      {% for p in points %}
+        <circle cx="{{ '%.1f'|format(p[0]) }}" cy="{{ '%.1f'|format(p[1]) }}" r="2.5" fill="currentColor"></circle>
+      {% endfor %}
+    </svg>
+    <div class="sparkline-caption">
+      <span>{{ revenue_trend[0].day[5:] if revenue_trend }}</span>
+      <span>Peak: {{ settings.currency_symbol }}{{ "{:,}".format(max_total) }}</span>
+      <span>{{ revenue_trend[-1].day[5:] if revenue_trend }}</span>
+    </div>
+  </div>
+
+  <div class="card-box">
+    <h3>Best Sellers</h3>
+    {% if top_products %}
+    <ul class="top-products">
+      {% for p in top_products %}
+      <li>
+        <span class="top-products__name">{{ p.product_name }}</span>
+        <span class="top-products__meta">{{ p.orders_count }} order{{ 's' if p.orders_count != 1 else '' }} · {{ settings.currency_symbol }}{{ "{:,}".format(p.revenue) }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state" style="padding:1.5rem 0;">No sales yet. Add products and share your store link!</div>
+    {% endif %}
+  </div>
+
+  <div class="card-box">
+    <h3>Coupon Performance</h3>
+    {% if coupon_performance %}
+    <table class="coupon-perf-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Uses</th>
+          <th>Discount Given</th>
+          <th>Net Revenue</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cp in coupon_performance %}
+        <tr>
+          <td><span class="coupon-perf-code">{{ cp.code }}</span></td>
+          <td>{{ cp.use_count }}</td>
+          <td>{{ settings.currency_symbol }}{{ "{:,}".format(cp.total_discount) }}</td>
+          <td>{{ settings.currency_symbol }}{{ "{:,}".format(cp.net_revenue) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="coupon-perf-note">Top 10 coupons by total discount given. <a href="{{ url_for('admin_coupon_history') }}">View full usage history →</a></div>
+    {% else %}
+    <div class="empty-state" style="padding:1.5rem 0;">No coupon usage yet. Create a coupon to get started.</div>
+    {% endif %}
+  </div>
+</div>
+
+<h3 style="margin-top:2.5rem;">Recent Orders</h3>
+{% if recent_orders %}
+<div class="admin-order-cards">
+  {% for o in recent_orders %}
+  <a href="{{ url_for('admin_order_detail', order_id=o.id) }}" class="admin-order-card">
+    <div class="admin-order-card__top">
+      <span class="admin-order-card__ref">{{ o.order_ref }}</span>
+      <span class="badge badge--{{ o.status }}">{{ o.status }}</span>
+      {% if o.payment_mode == 'test' %}<span class="badge badge--test">testing mode</span>{% else %}<span class="badge badge--live">live</span>{% endif %}
+    </div>
+    <div class="admin-order-card__product">{{ o.product_name }}</div>
+    <div class="admin-order-card__bottom">
+      <span>{{ o.customer_name }}</span>
+      <span class="admin-order-card__amount">{{ settings.currency_symbol }}{{ "{:,}".format(o.amount) }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">No orders yet. Your store is ready — start sharing it!</div>
+{% endif %}
+
+<div class="admin-quick-actions">
+  <h3>Quick Actions</h3>
+  <div class="admin-quick-actions__grid">
+    <a href="{{ url_for('admin_product_new') }}" class="admin-quick-action">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      <span>Add Product</span>
+    </a>
+    <a href="{{ url_for('admin_orders', status='paid') }}" class="admin-quick-action">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+      <span>Deliver Orders</span>
+    </a>
+    <a href="{{ url_for('admin_coupons') }}" class="admin-quick-action">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 12v10H4V12"></path><path d="M2 7h20v5H2z"></path></svg>
+      <span>New Coupon</span>
+    </a>
+    <a href="{{ url_for('admin_settings') }}" class="admin-quick-action">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      <span>Edit Settings</span>
+    </a>
+  </div>
+</div>
+{% endblock %}

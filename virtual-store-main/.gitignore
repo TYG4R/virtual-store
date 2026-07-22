@@ -1,0 +1,9 @@
+.env
+instance/*.db
+instance/INITIAL_ADMIN_PASSWORD.txt
+instance/.persistence_check
+static/uploads/*
+!static/uploads/.gitkeep
+__pycache__/
+*.pyc
+.DS_Store

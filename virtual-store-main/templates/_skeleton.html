@@ -1,0 +1,13 @@
+{% macro skeleton_card() %}
+<div class="skeleton-card shimmer">
+  <div class="skeleton-card__img"></div>
+  <div class="skeleton-card__title"></div>
+  <div class="skeleton-card__price"></div>
+</div>
+{% endmacro %}
+
+{% macro skeleton_cards(count=6) %}
+{% for _ in range(count) %}
+  {{ skeleton_card() }}
+{% endfor %}
+{% endmacro %}

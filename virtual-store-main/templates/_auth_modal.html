@@ -1,0 +1,239 @@
+{# Self-contained phone/OTP sign-in modal — no Firebase needed.
+   Works entirely with our own backend: send code -> verify -> create account.
+   Opens from the nav "Sign In" link, the mobile menu, or checkout. #}
+<div class="auth-modal" id="authModal" aria-hidden="true">
+  <div class="auth-modal__backdrop" onclick="closeAuthModal()"></div>
+  <div class="auth-modal__panel" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+    <div class="auth-progress" id="authProgress" aria-hidden="true">
+      <span class="auth-progress__dot is-active" data-step="authStepPhone"></span>
+      <span class="auth-progress__dot" data-step="authStepCode"></span>
+      <span class="auth-progress__dot" data-step="authStepDetails"></span>
+    </div>
+
+    <!-- Step 1: Phone number -->
+    <div id="authStepPhone" class="auth-step auth-step--active">
+      <div class="auth-modal__icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="5" y="2" width="14" height="20" rx="2"></rect>
+          <line x1="12" y1="18" x2="12" y2="18"></line>
+        </svg>
+      </div>
+      <h3 id="authModalTitle">Sign in</h3>
+      <p class="auth-modal__hint">Unlock instant checkout and order updates via SMS.</p>
+      <div class="field">
+        <label>Phone Number</label>
+        <div class="phone-input-wrap">
+          <div class="country-selector" id="countrySelector" tabindex="0" role="combobox" aria-label="Country code">
+            <span class="country-selector__trigger">
+              <span class="country-selector__flag" id="selectedFlag">🇮🇳</span>
+              <span class="country-selector__code" id="selectedCode">+91</span>
+              <svg class="country-selector__chevron" width="10" height="6" viewBox="0 0 10 6" fill="none">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <div class="country-selector__dropdown" id="countryDropdown">
+              <input type="text" class="country-selector__search" id="countrySearch" placeholder="Search country..." autocomplete="off">
+              <div class="country-selector__list" id="countryList"></div>
+            </div>
+          </div>
+          <input type="tel" id="authPhoneInput" placeholder="98765 43210" autocomplete="tel" inputmode="numeric" maxlength="10">
+        </div>
+        <small id="phoneHint">Enter your number after the country code.</small>
+      </div>
+      <button type="button" class="btn btn--full" id="authSendCodeBtn" onclick="authSendCode()">
+        <span class="btn__text">Send Code</span>
+        <span class="btn__spinner"></span>
+      </button>
+      {% if gis_enabled or firebase_auth_enabled %}
+      <div class="auth-modal__divider"><span>or</span></div>
+      {% endif %}
+      {% if gis_enabled %}
+      <div id="authGoogleBtn" class="gis-google-btn-wrap"></div>
+      {% elif firebase_auth_enabled %}
+      <button type="button" class="btn btn--full btn--google" id="authGoogleBtn" onclick="authSignInGoogle()">
+        <span class="btn__loading-content">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          <span class="btn__text">Continue with Google</span>
+        </span>
+        <span class="btn__spinner"></span>
+      </button>
+      {% endif %}
+      <p class="auth-modal__error" id="authPhoneError"></p>
+      <p class="auth-modal__legal">We'll send a one-time code via SMS. Standard rates may apply.</p>
+    </div>
+
+    <!-- Step 2: OTP code -->
+    <div id="authStepCode" class="auth-step">
+      <div class="auth-modal__icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+      </div>
+      <h3>Enter code</h3>
+      <p class="auth-modal__hint">Sent to <span id="authPhoneDisplay" class="auth-modal__phone"></span></p>
+      <div class="auth-otp-inputs" id="authOtpInputs">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="0" aria-label="Digit 1">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="1" aria-label="Digit 2">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="2" aria-label="Digit 3">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="3" aria-label="Digit 4">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="4" aria-label="Digit 5">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="5" aria-label="Digit 6">
+      </div>
+      <div class="auth-otp-dev-hint" id="authDevHint" style="display:none;"></div>
+      <button type="button" class="btn btn--full" id="authVerifyBtn" onclick="authVerifyCode()">
+        <span class="btn__text">Verify</span>
+        <span class="btn__spinner"></span>
+      </button>
+      <div class="auth-modal__row">
+        <button type="button" class="auth-modal__link" onclick="authResendCode()">Resend code</button>
+        <button type="button" class="auth-modal__link" onclick="authBackToPhone()">Wrong number?</button>
+      </div>
+      <p class="auth-modal__error" id="authCodeError"></p>
+    </div>
+
+    <!-- Step 3: Details (new users) -->
+    <div id="authStepDetails" class="auth-step">
+      <div class="auth-modal__icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      </div>
+      <h3>Almost there</h3>
+      <p class="auth-modal__hint">What should we call you?</p>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="authNameInput" placeholder="Your name" autocomplete="name">
+      </div>
+      <div class="field">
+        <label>Email <span class="auth-modal__optional">(optional)</span></label>
+        <input type="email" id="authEmailInput" placeholder="you@example.com" autocomplete="email">
+        <small>For receipts and updates.</small>
+      </div>
+      <button type="button" class="btn btn--full" id="authFinishBtn" onclick="authFinish()">
+        <span class="btn__text">Complete</span>
+        <span class="btn__spinner"></span>
+      </button>
+      <p class="auth-modal__error" id="authDetailsError"></p>
+    </div>
+
+    <!-- Step 4: Success -->
+    <div id="authStepSuccess" class="auth-step auth-step--success">
+      <div class="auth-success-check">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6L9 17l-5-5"></path>
+        </svg>
+      </div>
+      <h3 id="authSuccessName">Welcome!</h3>
+      <p class="auth-modal__hint">You're signed in.</p>
+    </div>
+
+    <div class="auth-eyes" id="authEyes">
+      <div class="auth-eyes__container">
+        <div class="auth-eyes__eye" id="authEyeLeft">
+          <div class="auth-eyes__pupil" id="authPupilLeft"></div>
+        </div>
+        <div class="auth-eyes__eye" id="authEyeRight">
+          <div class="auth-eyes__pupil" id="authPupilRight"></div>
+        </div>
+      </div>
+    </div>
+
+    <button type="button" class="auth-modal__close" onclick="closeAuthModal()" aria-label="Close">&times;</button>
+    </div>
+  </div>
+
+  <script nonce="{{ csp_nonce }}">
+  (function() {
+    var L = document.getElementById('authEyeLeft');
+    var R = document.getElementById('authEyeRight');
+    var LP = document.getElementById('authPupilLeft');
+    var RP = document.getElementById('authPupilRight');
+    var C = document.getElementById('authEyes');
+    var tracking = true, rafId = null;
+    var tx = 0, ty = 0, cx = 0, cy = 0;
+    var vx = 0, vy = 0; // velocity
+    var MAX = 7;
+    var lastTime = 0;
+
+    function tick(t) {
+      if (!lastTime) lastTime = t;
+      var dt = Math.min((t - lastTime) / 16, 3); // normalize to ~60fps
+      lastTime = t;
+      // Spring-damper: force toward target, velocity decay
+      var spring = 0.035 * dt, damp = 0.82;
+      vx += (tx - cx) * spring;
+      vy += (ty - cy) * spring;
+      vx *= damp; vy *= damp;
+      cx += vx; cy += vy;
+      // Decay tiny movements to zero to avoid micro-jitter
+      if (Math.abs(cx) < 0.02 && Math.abs(tx) < 0.02) cx = 0;
+      if (Math.abs(cy) < 0.02 && Math.abs(ty) < 0.02) cy = 0;
+      LP.style.transform = 'translate(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px)';
+      RP.style.transform = 'translate(' + cx.toFixed(2) + 'px,' + cy.toFixed(2) + 'px)';
+      if (Math.abs(vx) > 0.001 || Math.abs(vy) > 0.001 || Math.abs(tx - cx) > 0.1 || Math.abs(ty - cy) > 0.1) {
+        rafId = requestAnimationFrame(tick);
+      } else { rafId = null; }
+    }
+
+    function move(e) {
+      if (!tracking) return;
+      var x, y;
+      if (e.touches) { x = e.touches[0].clientX; y = e.touches[0].clientY; }
+      else { x = e.clientX; y = e.clientY; }
+      var r = C.getBoundingClientRect();
+      tx = Math.max(-MAX, Math.min(MAX, (x - (r.left + r.width/2)) / 18));
+      ty = Math.max(-MAX, Math.min(MAX, (y - (r.top + r.height/2)) / 18));
+      if (!rafId) { lastTime = 0; rafId = requestAnimationFrame(tick); }
+    }
+
+    document.addEventListener('mousemove', move);
+    document.addEventListener('touchmove', move);
+    document.addEventListener('touchstart', move);
+
+    // ─── Velocity wink: snap shut, elastic overshoot open ───
+    function doWink(eye, cb) {
+      eye.style.transition = 'none';
+      eye.style.transform = 'scaleY(0.1)';
+      // hold shut briefly, then snap open with overshoot
+      setTimeout(function() {
+        eye.style.transition = 'transform 0.08s cubic-bezier(0.34, 1.8, 0.64, 1)';
+        eye.style.transform = 'scaleY(1)';
+        setTimeout(function() { eye.style.transition = ''; if (cb) cb(); }, 120);
+      }, 100);
+    }
+
+    window.authEyesWink = function() {
+      tracking = false; vx = 0; vy = 0; tx = 0; ty = 0; cx = 0; cy = 0;
+      LP.style.transform = ''; RP.style.transform = '';
+      doWink(L, function() {
+        setTimeout(function() {
+          doWink(L); doWink(R);
+          setTimeout(function() {
+            doWink(L);
+            setTimeout(function() { tracking = true; }, 400);
+          }, 400);
+        }, 600);
+      });
+    };
+
+    // Random idle blinks
+    setInterval(function() {
+      if (!tracking || Math.random() >= 0.3) return;
+      doWink(L);
+    }, 5000);
+
+    // Exposed reset so openAuthModal() can re-activate pupils after modal closes/reopens
+    window.authEyesReset = function() {
+      tracking = true; vx = 0; vy = 0; tx = 0; ty = 0; cx = 0; cy = 0;
+      LP.style.transform = ''; RP.style.transform = '';
+      L.style.transform = ''; R.style.transform = '';
+      L.style.transition = ''; R.style.transition = '';
+    };
+  })();
+  </script>

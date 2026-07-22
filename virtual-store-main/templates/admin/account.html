@@ -1,0 +1,107 @@
+{% extends "admin/base.html" %}
+{% block title %}My Account{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>My Account</h1></div>
+
+<div class="card-box" style="max-width:460px;">
+  <h3>Change Password</h3>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label>Current Password</label>
+      <input type="password" name="current_password" required>
+    </div>
+    <div class="field">
+      <label>New Password</label>
+      <input type="password" name="new_password" required minlength="8">
+      <small>At least 8 characters.</small>
+    </div>
+    <div class="field">
+      <label>Confirm New Password</label>
+      <input type="password" name="confirm_password" required minlength="8">
+    </div>
+    <button class="btn" type="submit">Update Password</button>
+  </form>
+</div>
+
+<div class="card-box" style="max-width:460px;">
+  <h3>Two-Factor Authentication</h3>
+  <p class="help-text" style="margin-top:0;">Add an extra layer of security by requiring a 6-digit code from your authenticator app when logging in.</p>
+  <a href="{{ url_for('admin_totp_setup') }}" class="btn btn--outline btn--sm">Manage Two-Factor Auth</a>
+</div>
+
+{% if config.VAPID_PUBLIC_KEY %}
+<div class="card-box" style="max-width:460px;">
+  <h3>Order Alerts</h3>
+  <p class="help-text" style="margin-top:0;">
+    Get a push notification on this device the moment a new order comes in — even when
+    you're not looking at the admin panel. {% if request.user_agent and ('iphone' in request.user_agent.string.lower() or 'ipad' in request.user_agent.string.lower()) %}On iPhone, you need to add this page to your home screen first (Share → Add to Home Screen) for push notifications to work.{% endif %}
+  </p>
+  <p style="margin:0.5rem 0 0;font-size:0.82rem;">
+    <strong>Status:</strong> <span id="pushStatus">Checking…</span>
+  </p>
+  <button id="pushEnableBtn" class="btn btn--sm" style="margin-top:0.5rem;display:none;" onclick="enablePushNotifications()">
+    Enable Order Alerts
+  </button>
+  <button id="pushDisableBtn" class="btn btn--sm btn--outline" style="margin-top:0.5rem;display:none;" onclick="disablePushNotifications()">
+    Disable Order Alerts
+  </button>
+  <div id="pushIosNote" style="display:none;margin-top:0.5rem;padding:0.5rem;background:#fff8e1;border:1px solid #ffe082;border-radius:4px;font-size:0.78rem;color:#6d5200;">
+    On iPhone, push notifications only work after you add this page to your home screen. Tap the Share button → Add to Home Screen, then enable alerts again.
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var statusEl = document.getElementById('pushStatus');
+  var enableBtn = document.getElementById('pushEnableBtn');
+  var disableBtn = document.getElementById('pushDisableBtn');
+  var iosNote = document.getElementById('pushIosNote');
+
+  function checkPushState() {
+    if ('PushManager' in window && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(function (reg) {
+        reg.pushManager.getSubscription().then(function (sub) {
+          if (sub) {
+            statusEl.textContent = 'Enabled';
+            enableBtn.style.display = 'none';
+            disableBtn.style.display = 'inline-block';
+          } else {
+            statusEl.textContent = 'Disabled';
+            enableBtn.style.display = 'inline-block';
+            disableBtn.style.display = 'none';
+          }
+        });
+      });
+    } else {
+      statusEl.textContent = 'Not supported';
+      iosNote.style.display = 'block';
+    }
+  }
+
+  window.enablePushNotifications = function () {
+    if (window.__subscribePush) {
+      window.__subscribePush().then(function () {
+        checkPushState();
+      }).catch(function (err) {
+        if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+          iosNote.style.display = 'block';
+        }
+        statusEl.textContent = 'Permission denied';
+      });
+    }
+  };
+
+  window.disablePushNotifications = function () {
+    if (window.__unsubscribePush) {
+      window.__unsubscribePush().then(function () {
+        checkPushState();
+      });
+    }
+  };
+
+  checkPushState();
+})();
+</script>
+{% endif %}
+{% endblock %}

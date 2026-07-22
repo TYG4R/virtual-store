@@ -1,0 +1,259 @@
+{% macro filters_panel(categories, active_category, active_filters, sort, filter_price_min, filter_price_max) %}
+{% set ns = namespace(count=0) %}
+{% if active_filters %}
+  {% for k, v in active_filters.items() %}
+    {% if k != 'category' %}{% set ns.count = ns.count + 1 %}{% endif %}
+  {% endfor %}
+{% endif %}
+
+<div class="filters" id="filtersPanel">
+  <button class="filters__toggle" type="button" onclick="toggleFilters()" aria-expanded="false">
+    <span class="filters__toggle-label">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <line x1="4" y1="6" x2="20" y2="6"></line>
+        <line x1="8" y1="12" x2="20" y2="12"></line>
+        <line x1="12" y1="18" x2="20" y2="18"></line>
+        <circle cx="8" cy="6" r="1.5" fill="currentColor" stroke="none"></circle>
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"></circle>
+        <circle cx="16" cy="18" r="1.5" fill="currentColor" stroke="none"></circle>
+      </svg>
+      Filters
+      {% if ns.count > 0 %}
+      <span class="filters__badge">{{ ns.count }}</span>
+      {% endif %}
+    </span>
+    <svg class="filters__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+
+  <form class="filters__form" method="GET" action="{{ url_for('home') }}" id="filtersForm">
+    {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+
+    <div class="filters__body" id="filtersBody">
+      <!-- Category filter -->
+      <div class="filters__group">
+        <h4 class="filters__group-title">Category</h4>
+        <div class="filters__options">
+          <label class="filters__radio">
+            <input type="radio" name="category" value="" onchange="this.form.submit()"
+                   {{ 'checked' if not active_category }}>
+            <span>All Categories</span>
+          </label>
+          {% for c in categories %}
+          <label class="filters__radio">
+            <input type="radio" name="category" value="{{ c }}" onchange="this.form.submit()"
+                   {{ 'checked' if active_category == c }}>
+            <span>{{ c }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Price range filter — dual slider -->
+      <div class="filters__group">
+        <h4 class="filters__group-title">Price Range</h4>
+        <div class="slider-container">
+          <div class="slider-progress" id="priceSliderProgress"></div>
+          <input type="range" class="slider-input slider-input--min"
+                 id="priceSliderMin" min="{{ filter_price_min }}" max="{{ filter_price_max }}"
+                 value="{{ active_filters.get('price_min', filter_price_min) }}"
+                 step="1">
+          <input type="range" class="slider-input slider-input--max"
+                 id="priceSliderMax" min="{{ filter_price_min }}" max="{{ filter_price_max }}"
+                 value="{{ active_filters.get('price_max', filter_price_max) }}"
+                 step="1">
+        </div>
+        <div class="slider-labels">
+          <span class="slider-label" id="priceLabelMin">${{ active_filters.get('price_min', filter_price_min) }}</span>
+          <span class="slider-label" id="priceLabelMax">${{ active_filters.get('price_max', filter_price_max) }}</span>
+        </div>
+        <input type="hidden" name="price_min" id="priceMinHidden"
+               value="{{ active_filters.get('price_min', '') }}">
+        <input type="hidden" name="price_max" id="priceMaxHidden"
+               value="{{ active_filters.get('price_max', '') }}">
+      </div>
+      <script nonce="{{ csp_nonce }}">
+        document.addEventListener('DOMContentLoaded', function() {
+          var minSl = document.getElementById('priceSliderMin');
+          var maxSl = document.getElementById('priceSliderMax');
+          var prog = document.getElementById('priceSliderProgress');
+          var minLabel = document.getElementById('priceLabelMin');
+          var maxLabel = document.getElementById('priceLabelMax');
+          var minHidden = document.getElementById('priceMinHidden');
+          var maxHidden = document.getElementById('priceMaxHidden');
+          var minV = parseInt(minSl.getAttribute('min'));
+          var maxV = parseInt(minSl.getAttribute('max'));
+          function update() {
+            var m = parseInt(minSl.value), M = parseInt(maxSl.value);
+            if (m > M) { m = M; minSl.value = m; }
+            if (M < m) { M = m; maxSl.value = M; }
+            var pctL = ((m - minV) / (maxV - minV)) * 100;
+            var pctR = ((M - minV) / (maxV - minV)) * 100;
+            prog.style.left = pctL + '%';
+            prog.style.width = (pctR - pctL) + '%';
+            minLabel.textContent = '$' + m;
+            maxLabel.textContent = '$' + M;
+            minHidden.value = m === minV ? '' : m;
+            maxHidden.value = M === maxV ? '' : M;
+          }
+          minSl.addEventListener('input', update);
+          maxSl.addEventListener('input', update);
+          update();
+        });
+      </script>
+
+      <!-- Sort by -->
+      <div class="filters__group">
+        <h4 class="filters__group-title">Sort By</h4>
+        <div class="filters__options">
+          <label class="filters__radio">
+            <input type="radio" name="sort" value="" onchange="this.form.submit()"
+                   {{ 'checked' if not sort }}>
+            <span>Featured</span>
+          </label>
+          <label class="filters__radio">
+            <input type="radio" name="sort" value="newest" onchange="this.form.submit()"
+                   {{ 'checked' if sort == 'newest' }}>
+            <span>Newest</span>
+          </label>
+          <label class="filters__radio">
+            <input type="radio" name="sort" value="price_low" onchange="this.form.submit()"
+                   {{ 'checked' if sort == 'price_low' }}>
+            <span>Price: Low to High</span>
+          </label>
+          <label class="filters__radio">
+            <input type="radio" name="sort" value="price_high" onchange="this.form.submit()"
+                   {{ 'checked' if sort == 'price_high' }}>
+            <span>Price: High to Low</span>
+          </label>
+          <label class="filters__radio">
+            <input type="radio" name="sort" value="name" onchange="this.form.submit()"
+                   {{ 'checked' if sort == 'name' }}>
+            <span>Name: A to Z</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Delivery type filter -->
+      <div class="filters__group">
+        <h4 class="filters__group-title">Delivery Type</h4>
+        <div class="filters__options">
+          {% set selected_dt = (active_filters.get('delivery_type', '') | string).split(',') %}
+          <label class="filters__checkbox">
+            <input type="checkbox" name="delivery_type" value="file" onchange="submitFiltersDelayed()"
+                   {{ 'checked' if 'file' in selected_dt }}>
+            <span>Instant Download</span>
+          </label>
+          <label class="filters__checkbox">
+            <input type="checkbox" name="delivery_type" value="license_key" onchange="submitFiltersDelayed()"
+                   {{ 'checked' if 'license_key' in selected_dt }}>
+            <span>License Key</span>
+          </label>
+          <label class="filters__checkbox">
+            <input type="checkbox" name="delivery_type" value="access_link" onchange="submitFiltersDelayed()"
+                   {{ 'checked' if 'access_link' in selected_dt }}>
+            <span>Access Link</span>
+          </label>
+          <label class="filters__checkbox">
+            <input type="checkbox" name="delivery_type" value="instructions" onchange="submitFiltersDelayed()"
+                   {{ 'checked' if 'instructions' in selected_dt }}>
+            <span>Instructions / Manual</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Rating filter -->
+      <div class="filters__group">
+        <h4 class="filters__group-title">Minimum Rating</h4>
+        <div class="filters__options">
+          {% set cur_rating = active_filters.get('rating', '') %}
+          {% for stars in [5, 4, 3, 2, 1] %}
+          <label class="filters__radio">
+            <input type="radio" name="rating" value="{{ stars }}" onchange="this.form.submit()"
+                   {{ 'checked' if cur_rating|string == stars|string }}>
+            <span class="filters__stars">{{ '★' * stars }}{{ '☆' * (5 - stars) }}</span>
+            <span class="filters__stars-label">&amp; up</span>
+          </label>
+          {% endfor %}
+          {% if cur_rating %}
+          <label class="filters__radio">
+            <input type="radio" name="rating" value="" onchange="this.form.submit()">
+            <span>Any Rating</span>
+          </label>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Clear / apply actions -->
+      <div class="filters__actions">
+        {% if ns.count > 0 %}
+        <a href="{{ url_for('home') }}{% if search_query %}?q={{ search_query }}{% endif %}#products" class="filters__clear">Clear all filters</a>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+function toggleFilters() {
+  var body = document.getElementById('filtersBody');
+  var btn = document.querySelector('.filters__toggle');
+  if (body && btn) {
+    var expanded = body.classList.toggle('open');
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+}
+
+var submitTimer = null;
+function submitFiltersDelayed() {
+  if (submitTimer) clearTimeout(submitTimer);
+  submitTimer = setTimeout(function() {
+    var form = document.getElementById('filtersForm');
+    if (form) {
+      // Collect all checked delivery_type checkboxes
+      var checked = document.querySelectorAll('input[name="delivery_type"]:checked');
+      if (checked.length > 0) {
+        var vals = [];
+        checked.forEach(function(cb) { vals.push(cb.value); });
+        // Add hidden input for combined delivery_type value
+        var existing = document.querySelector('input[name="delivery_type"][type="hidden"]');
+        if (!existing) {
+          existing = document.createElement('input');
+          existing.type = 'hidden';
+          existing.name = 'delivery_type';
+          form.appendChild(existing);
+        }
+        existing.value = vals.join(',');
+      } else {
+        var existing = document.querySelector('input[name="delivery_type"][type="hidden"]');
+        if (existing) existing.value = '';
+      }
+      form.submit();
+    }
+  }, 300);
+}
+
+// On page load, re-check checkboxes based on URL param
+(function() {
+  var urlParams = new URLSearchParams(window.location.search);
+  var dtParam = urlParams.get('delivery_type');
+  if (dtParam) {
+    var vals = dtParam.split(',');
+    document.querySelectorAll('input[name="delivery_type"]').forEach(function(cb) {
+      cb.checked = vals.indexOf(cb.value) !== -1;
+    });
+  }
+  // Open filter panel on mobile if filters are active
+  var body = document.getElementById('filtersBody');
+  var btn = document.querySelector('.filters__toggle');
+  if (body && btn) {
+    var activeCount = {{ ns.count }};
+    if (activeCount > 0 && window.innerWidth < 768) {
+      body.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+  }
+})();
+</script>
+{% endmacro %}

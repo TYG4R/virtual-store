@@ -1,0 +1,107 @@
+{% macro delivery_block(order, settings, order_items=none, product_map=none, delivery_content_type=none) %}
+{% if order.status == 'delivered' and order.delivery_message %}
+{% set msg = order.delivery_message | simple_markdown %}
+
+{# Resolve content type: explicit param > from product_map > from template context > auto-detect #}
+{% set ct = delivery_content_type %}
+{% if not ct and order.delivery_content_type %}
+  {% set ct = order.delivery_content_type %}
+{% endif %}
+{% if not ct %}
+  {# Auto-detect from message content #}
+  {% if '/download/' in msg %}
+    {% set ct = 'file' %}
+  {% elif '\n' not in msg and msg|length <= 80 %}
+    {% if 'http://' in msg or 'https://' in msg %}
+      {% set ct = 'access_link' %}
+    {% else %}
+      {% set ct = 'license_key' %}
+    {% endif %}
+  {% else %}
+    {% set ct = 'instructions' %}
+  {% endif %}
+{% endif %}
+
+<div class="delivery-block">
+  {% if ct == 'file' %}
+    {# File download — render download buttons from links in message #}
+    {% if '/download/' in msg %}
+      {% for line in msg.split('\n') %}
+        {% set l = line.strip() %}
+        {% if l %}
+          {% if '/download/' in l %}
+          <div class="delivery-item delivery-item--file">
+            <button class="btn btn--sm btn--outline delivery-download-btn"
+                    data-delivery-download="{{ l }}"
+                    data-original-html="Download File">
+              ↓ Download File
+            </button>
+          </div>
+          {% else %}
+          <div class="delivery-text">{{ l }}</div>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    {% else %}
+      <div class="delivery-instructions">
+        <div class="delivery-instructions__text">{{ msg }}</div>
+      </div>
+    {% endif %}
+
+  {% elif ct == 'license_key' %}
+    {# License key — reveal + copy #}
+    {% for line in msg.split('\n') %}
+      {% set l = line.strip() %}
+      {% if l %}
+      <div class="delivery-key" style="margin-bottom:0.5rem;">
+        <span class="delivery-key__masked">{{ l[:8] }}-••••-••••-••••</span>
+        <span class="delivery-key__full">{{ l }}</span>
+        <button class="btn btn--sm btn--outline delivery-key__reveal-btn"
+                data-delivery-reveal=""
+                data-original-html="Reveal" style="margin-left:0.4rem;">
+          👁 Reveal
+        </button>
+        <button class="btn btn--sm btn--outline"
+                data-delivery-copy="{{ l }}"
+                data-original-html="Copy" style="margin-left:0.3rem;">
+          📋 Copy
+        </button>
+      </div>
+      {% endif %}
+    {% endfor %}
+
+  {% elif ct == 'access_link' %}
+    {# Access link — prominent activate/open button #}
+    {% set link = msg.strip() %}
+    {% if 'http://' not in link and 'https://' not in link %}
+      {% for line in msg.split('\n') %}
+        {% set l = line.strip() %}
+        {% if 'http://' in l or 'https://' in l %}
+          {% set link = l %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+    <div class="delivery-item delivery-item--link" style="text-align:center;">
+      <a href="{{ link }}" target="_blank" rel="noopener" class="btn"
+         data-delivery-activate="{{ link }}">
+        ↗ Open Access
+      </a>
+      {% if msg != link %}
+      <div class="delivery-text" style="margin-top:0.75rem; text-align:left;">{{ msg }}</div>
+      {% endif %}
+    </div>
+
+  {% else %}
+    {# instructions — text card with copy button #}
+    <div class="delivery-instructions">
+      <div class="delivery-instructions__text">{{ msg }}</div>
+      <button class="btn btn--sm btn--outline delivery-copy-btn"
+              data-delivery-copy="{{ msg }}"
+              data-original-html="Copy All">
+        📋 Copy All
+      </button>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}

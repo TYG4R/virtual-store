@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" style="max-width:760px; padding:4rem 0; text-align:center;">
+  <h1 style="font-family:var(--serif); font-size:clamp(2rem, 6vw, 3.25rem); margin-bottom:1rem;">Something went wrong</h1>
+  <p class="lead" style="max-width:560px; margin:0 auto 1.5rem;">We ran into an unexpected error. The team has been notified in logs and the rest of the site should stay available.</p>
+  {% if request_id %}<p style="font-size:0.85rem; color:var(--grey-500);">Reference: {{ request_id }}</p>{% endif %}
+  <div style="margin-top:1.75rem;">
+    <a class="btn" href="{{ url_for('home') }}">Back to Home</a>
+  </div>
+</div>
+{% endblock %}

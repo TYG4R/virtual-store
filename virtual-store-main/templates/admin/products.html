@@ -1,0 +1,159 @@
+{% extends "admin/base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Products</h1>
+  <a href="{{ url_for('admin_product_new') }}" class="btn">+ Add New Product</a>
+</div>
+
+<form method="GET" action="{{ url_for('admin_products') }}" style="margin-bottom:1.5rem; display:flex; gap:0.75rem; flex-wrap:wrap; max-width:600px;">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search products…" style="flex:1; min-width:200px; padding:0.6rem 0.9rem; border:1px solid var(--border); border-radius:3px; font-family:var(--sans); font-size:0.85rem;">
+  <select name="category" style="padding:0.6rem 0.9rem; border:1px solid var(--border); border-radius:3px; font-family:var(--sans); font-size:0.85rem;">
+    <option value="">All categories</option>
+    {% for c in categories %}
+    <option value="{{ c }}" {{ 'selected' if cat == c }}>{{ c }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn--outline btn--sm">Filter</button>
+  {% if q or cat %}
+  <a href="{{ url_for('admin_products') }}" class="btn btn--sm btn--outline">Clear</a>
+  {% endif %}
+</form>
+
+{% if products %}
+<form method="POST" action="{{ url_for('admin_products_bulk') }}" id="bulkForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="bulk-bar" id="bulkBar">
+    <span id="bulkCount">0 selected</span>
+    <select name="action">
+      <option value="activate">Activate</option>
+      <option value="deactivate">Deactivate</option>
+      <option value="delete">Delete</option>
+    </select>
+    <button type="submit" onclick="return confirm('Apply this action to the selected products?');">Apply</button>
+  </div>
+
+  <table class="table">
+    <tr>
+      <th></th>
+      <th><input type="checkbox" id="selectAll" aria-label="Select all products"></th>
+      <th></th>
+      <th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Delivery</th><th>Status</th><th></th>
+    </tr>
+    {% for p in products %}
+    <tr>
+      <td style="white-space:nowrap;">
+        <form method="POST" action="{{ url_for('admin_product_move', product_id=p.id, direction='up') }}?q={{ q }}&category={{ cat }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn--sm btn--outline" style="padding:0.2rem 0.5rem; font-size:0.7rem;" {{ 'disabled' if loop.first }}>↑</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin_product_move', product_id=p.id, direction='down') }}?q={{ q }}&category={{ cat }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn--sm btn--outline" style="padding:0.2rem 0.5rem; font-size:0.7rem;" {{ 'disabled' if loop.last }}>↓</button>
+        </form>
+      </td>
+      <td><input type="checkbox" class="row-check" name="product_ids" value="{{ p.id }}"></td>
+      <td>
+        {% if thumbs[p.id] %}
+          <img class="thumb" src="{{ url_for('uploaded_file', filename=thumbs[p.id]) }}">
+        {% else %}
+          <div class="thumb" style="background:var(--grey-100);"></div>
+        {% endif %}
+      </td>
+      <td>{{ p.name }}</td>
+      <td>{{ p.category or "—" }}</td>
+      <td>₹{{ "{:,}".format(p.price) }}</td>
+      <td class="inline-stock-cell" data-pid="{{ p.id }}">
+        {% if p.quantity is none %}
+          <input type="number" class="inline-stock-input" value="" placeholder="∞" min="0" style="width:52px;padding:0.25rem 0.35rem;border:1px solid var(--border);border-radius:3px;font-size:0.8rem;">
+        {% elif p.quantity == 0 %}
+          <input type="number" class="inline-stock-input" value="0" min="0" style="width:52px;padding:0.25rem 0.35rem;border:1px solid #cc5555;border-radius:3px;font-size:0.8rem;">
+        {% elif p.quantity <= 5 %}
+          <input type="number" class="inline-stock-input" value="{{ p.quantity }}" min="0" style="width:52px;padding:0.25rem 0.35rem;border:1px solid #eab308;border-radius:3px;font-size:0.8rem;">
+        {% else %}
+          <input type="number" class="inline-stock-input" value="{{ p.quantity }}" min="0" style="width:52px;padding:0.25rem 0.35rem;border:1px solid var(--border);border-radius:3px;font-size:0.8rem;">
+        {% endif %}
+        <span class="inline-stock-saved" style="display:none;font-size:0.7rem;color:#4caf50;margin-left:0.3rem;">✓</span>
+      </td>
+      <td>{{ "Automatic" if p.delivery_mode == "automatic" else "Manual" }}</td>
+      <td>
+        {% if p.active %}<span class="badge badge--delivered">Live</span>
+        {% else %}<span class="badge badge--cancelled">Hidden</span>{% endif %}
+      </td>
+      <td class="row-actions">
+        <a href="{{ url_for('admin_product_edit', product_id=p.id) }}" class="btn btn--outline btn--sm">Edit</a>
+        <form method="POST" action="{{ url_for('admin_product_clone', product_id=p.id) }}" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn--outline btn--sm" onclick="return confirm('Clone this product?')">Clone</button>
+        </form>
+        <button class="btn btn--danger btn--sm" type="button"
+                onclick="if(confirm('Delete this product permanently?')){document.getElementById('deleteForm{{ p.id }}').submit();}">Delete</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</form>
+
+{% for p in products %}
+<form id="deleteForm{{ p.id }}" method="POST" action="{{ url_for('admin_product_delete', product_id=p.id) }}" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endfor %}
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var selectAll = document.getElementById("selectAll");
+  var rowChecks = document.querySelectorAll(".row-check");
+  var bulkBar = document.getElementById("bulkBar");
+  var bulkCount = document.getElementById("bulkCount");
+
+  function refresh() {
+    var checked = document.querySelectorAll(".row-check:checked").length;
+    bulkBar.classList.toggle("active", checked > 0);
+    bulkCount.textContent = checked + " selected";
+  }
+  selectAll.addEventListener("change", function () {
+    rowChecks.forEach(function (cb) { cb.checked = selectAll.checked; });
+    refresh();
+  });
+  rowChecks.forEach(function (cb) { cb.addEventListener("change", refresh); });
+})();
+
+function getCsrfToken() {
+  var meta = document.querySelector('meta[name="csrf-token"]');
+  return meta ? meta.getAttribute('content') : '';
+}
+
+// Inline stock editing
+document.querySelectorAll('.inline-stock-input').forEach(function(inp) {
+  var timer;
+  inp.addEventListener('input', function() {
+    clearTimeout(timer);
+    timer = setTimeout(function() {
+      var val = inp.value.trim();
+      var pid = inp.closest('.inline-stock-cell').dataset.pid;
+      var saved = inp.parentElement.querySelector('.inline-stock-saved');
+      if (val === '' || val === '∞') {
+        val = -1; // signals NULL (unlimited)
+      }
+      fetch('/api/admin/products/' + pid + '/stock', {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+        body: JSON.stringify({quantity: parseInt(val) === -1 ? -1 : parseInt(val) || 0}),
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.success) {
+          saved.style.display = 'inline';
+          setTimeout(function() { saved.style.display = 'none'; }, 1500);
+          if (data.notified_count > 0) {
+            showToast('Notified ' + data.notified_count + ' waiting customer(s)!', 'success');
+          }
+        }
+      });
+    }, 600);
+  });
+});
+</script>
+{% else %}
+<div class="empty-state">You haven't added any products yet. Click "Add New Product" to get started.</div>
+{% endif %}
+{% endblock %}

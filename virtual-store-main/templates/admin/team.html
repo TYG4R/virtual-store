@@ -1,0 +1,329 @@
+{% extends "admin/base.html" %}
+{% block title %}Team{% endblock %}
+{% block content %}
+<div class="admin-header">
+  <h1>Team</h1>
+  <button class="btn btn--primary" onclick="document.getElementById('addAdminModal').classList.add('modal--open')">+ Add Admin</button>
+</div>
+
+<div class="admin-card-grid">
+  {% for admin in admins %}
+    <div class="admin-card">
+      <div class="admin-card__header">
+        <div class="admin-card__avatar">{{ admin["username"][:2].upper() }}</div>
+        <div>
+          <strong>{{ admin["username"] }}</strong>
+          <span class="admin-card__role badge badge--{{ 'master' if admin['role'] == 'master' else ('success' if admin['is_active'] else 'error') }}">
+            {{ admin["role"] }}
+          </span>
+        </div>
+      </div>
+      <div class="admin-card__body">
+        <div class="admin-card__meta">
+          <span>Status:</span>
+          <span class="{{ 'text-success' if admin['is_active'] else 'text-error' }}">
+            {{ 'Active' if admin['is_active'] else 'Suspended' }}
+          </span>
+        </div>
+        <div class="admin-card__meta">
+          <span>Created:</span>
+          <span>{{ admin["created_at"][:10] if admin["created_at"] else '—' }}</span>
+        </div>
+        <div class="admin-card__meta">
+          <span>Permissions:</span>
+          <span class="admin-card__perms">{{ admin["permissions"] }}</span>
+        </div>
+      </div>
+      {% if admin["role"] != "master" %}
+        <div class="admin-card__actions">
+          <button class="btn btn--sm" onclick="openEditModal({{ admin['id'] }}, '{{ admin['username'] }}', '{{ admin['role'] }}', '{{ admin['permissions'] | e }}', {{ admin['is_active'] }})">Edit</button>
+          <form method="POST" action="{{ url_for('admin_team_toggle', admin_id=admin['id']) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--sm btn--{{ 'warning' if admin['is_active'] else 'secondary' }}" type="submit">
+              {{ 'Suspend' if admin['is_active'] else 'Activate' }}
+            </button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
+
+{# ── Add Admin Modal ── #}
+<div class="modal" id="addAdminModal">
+  <div class="modal__backdrop" onclick="if(!document.getElementById('addCreds').style.display) this.parentElement.classList.remove('modal--open')"></div>
+  <div class="modal__content">
+    <h2>Add Admin</h2>
+    <form method="POST" action="{{ url_for('admin_team_add') }}" id="addAdminForm" onsubmit="return serializeCustomPerms(this, 'add')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="custom_permissions" id="addCustomPermsInput" value="[]">
+      <input type="hidden" name="generated_password" id="generatedPasswordInput" value="">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" required class="form-control" placeholder="e.g. ananya">
+      </div>
+      <div class="form-group">
+        <label>Auto-generate password</label>
+        <label class="toggle-label" style="justify-content:flex-start;gap:0.5rem;">
+          <input type="checkbox" id="autoGenPw" checked onchange="document.getElementById('manualPwGroup').style.display=this.checked?'none':'block'">
+          <span>Yes — generate a strong password automatically</span>
+        </label>
+      </div>
+      <div class="form-group" id="manualPwGroup" style="display:none">
+        <label>Password (min 8 characters)</label>
+        <input type="password" name="manual_password" minlength="8" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Quick role</label>
+        <div class="role-preset-grid" id="addPresetGrid">
+          <button type="button" class="role-preset-card" data-preset="order_manager" onclick="selectPreset(this,'add')">
+            <span class="role-preset-card__icon">📦</span>
+            <span class="role-preset-card__name">Order Manager</span>
+            <span class="role-preset-card__desc">View, refund, export orders</span>
+          </button>
+          <button type="button" class="role-preset-card" data-preset="catalog_manager" onclick="selectPreset(this,'add')">
+            <span class="role-preset-card__icon">🛍️</span>
+            <span class="role-preset-card__name">Catalog Manager</span>
+            <span class="role-preset-card__desc">Add &amp; edit products</span>
+          </button>
+          <button type="button" class="role-preset-card" data-preset="support_agent" onclick="selectPreset(this,'add')">
+            <span class="role-preset-card__icon">🎧</span>
+            <span class="role-preset-card__name">Support Agent</span>
+            <span class="role-preset-card__desc">View orders only</span>
+          </button>
+          <button type="button" class="role-preset-card role-preset-card--custom" data-preset="custom" onclick="selectPreset(this,'add')">
+            <span class="role-preset-card__icon">⚙️</span>
+            <span class="role-preset-card__name">Custom</span>
+            <span class="role-preset-card__desc">Pick permissions below</span>
+          </button>
+        </div>
+        <input type="hidden" name="role_preset" id="addRolePreset" value="order_manager">
+      </div>
+      <div class="form-group" id="addPermsGroup" style="display:none">
+        <label>Permissions — tick what this admin can do</label>
+        <div id="addPermsGrid" class="perms-grid"></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn" onclick="this.closest('.modal').classList.remove('modal--open')">Cancel</button>
+        <button type="submit" class="btn btn--primary">Create Admin</button>
+      </div>
+    </form>
+  </div>
+</div>
+  
+{# ── Show Credentials Modal (shown after creation) ── #}
+<div class="modal" id="showCredsModal">
+  <div class="modal__backdrop" onclick="this.parentElement.classList.remove('modal--open')"></div>
+  <div class="modal__content" style="max-width:420px;">
+    <h2>✅ Admin Created</h2>
+    <p style="margin:0.5rem 0 1rem;opacity:0.7;">Share these credentials with the new admin. <strong>This is the only time the password is shown.</strong></p>
+    <div class="card-box" style="background:var(--grey-100);border:1px solid var(--grey-200);padding:1rem;">
+      <div class="field"><label>Username</label><input type="text" id="credsUsername" readonly class="form-control" style="background:var(--bg);" onclick="this.select()"></div>
+      <div class="field"><label>Password</label><input type="text" id="credsPassword" readonly class="form-control" style="background:var(--bg);font-family:monospace;" onclick="this.select()"></div>
+      <div class="field"><label>Login URL</label><input type="text" id="credsUrl" readonly class="form-control" style="background:var(--bg);" onclick="this.select()"></div>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn btn--primary" onclick="var m=document.getElementById('showCredsModal');m.classList.remove('modal--open');">Done</button>
+    </div>
+  </div>
+</div>
+
+{# ── Edit Admin Modal ── #}
+<div class="modal" id="editAdminModal">
+  <div class="modal__backdrop" onclick="this.parentElement.classList.remove('modal--open')"></div>
+  <div class="modal__content">
+    <h2>Edit Admin — <span id="editAdminName"></span></h2>
+    <form method="POST" id="editAdminForm" onsubmit="return serializeCustomPerms(this, 'edit')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="role_preset" id="editRolePreset" value="custom">
+      <input type="hidden" name="custom_permissions" id="editCustomPermsInput" value="[]">
+      <div class="form-group">
+        <label>Quick role</label>
+        <div class="role-preset-grid" id="editPresetGrid">
+          <button type="button" class="role-preset-card" data-preset="order_manager" onclick="selectPreset(this,'edit')">
+            <span class="role-preset-card__icon">📦</span><span class="role-preset-card__name">Order Manager</span>
+          </button>
+          <button type="button" class="role-preset-card" data-preset="catalog_manager" onclick="selectPreset(this,'edit')">
+            <span class="role-preset-card__icon">🛍️</span><span class="role-preset-card__name">Catalog Manager</span>
+          </button>
+          <button type="button" class="role-preset-card" data-preset="support_agent" onclick="selectPreset(this,'edit')">
+            <span class="role-preset-card__icon">🎧</span><span class="role-preset-card__name">Support Agent</span>
+          </button>
+          <button type="button" class="role-preset-card role-preset-card--custom" data-preset="custom" onclick="selectPreset(this,'edit')">
+            <span class="role-preset-card__icon">⚙️</span><span class="role-preset-card__name">Custom</span>
+          </button>
+        </div>
+      </div>
+      <div class="form-group" id="editPermsGroup">
+        <label>Permissions — tick what this admin can do</label>
+        <div id="editPermsGrid" class="perms-grid"></div>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="is_active" value="1" id="editIsActive" checked>
+          Active
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn" onclick="this.closest('.modal').classList.remove('modal--open')">Cancel</button>
+        <button type="submit" class="btn btn--primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+var PERM_CATALOG = [
+  { group:"Orders", perms:[
+    {k:"orders.view",   label:"View orders"},
+    {k:"orders.refund", label:"Refund orders"},
+    {k:"orders.export", label:"Export orders"},
+  ]},
+  { group:"Catalog", perms:[
+    {k:"products.edit", label:"Add & edit products"},
+  ]},
+  { group:"Coupons", perms:[
+    {k:"coupons.manage", label:"Manage coupons"},
+  ]},
+  { group:"Content", perms:[
+    {k:"content.manage", label:"Reviews, FAQs, homepage"},
+  ]},
+  { group:"Marketing", perms:[
+    {k:"marketing.manage", label:"Newsletter & campaigns"},
+  ]},
+  { group:"System", perms:[
+    {k:"settings.manage", label:"Store settings"},
+    {k:"admin.manage",    label:"Manage team (admins)"},
+  ]},
+];
+var NEW_CREDS = {{ new_creds|tojson if new_creds else 'null' }};
+
+var PRESET_PERMS = {
+  order_manager:   ["orders.view","orders.refund","orders.export"],
+  catalog_manager: ["products.edit"],
+  support_agent:   ["orders.view"],
+  custom:          []
+};
+
+function buildPermsGrid(containerId, checked) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+  PERM_CATALOG.forEach(function(cat){
+    var g = document.createElement("div"); g.className = "perms-group"; g.textContent = cat.group;
+    container.appendChild(g);
+    cat.perms.forEach(function(p){
+      var lbl = document.createElement("label");
+      lbl.className = "perm-tick" + (checked.indexOf(p.k) > -1 ? " is-checked" : "");
+      var inp = document.createElement("input");
+      inp.type = "checkbox"; inp.value = p.k; inp.checked = checked.indexOf(p.k) > -1;
+      inp.addEventListener("change", function(){
+        lbl.classList.toggle("is-checked", inp.checked);
+      });
+      var box = document.createElement("span"); box.className = "perm-tick__box";
+      var name = document.createElement("span"); name.textContent = p.label;
+      lbl.appendChild(inp); lbl.appendChild(box); lbl.appendChild(name);
+      container.appendChild(lbl);
+    });
+  });
+}
+
+function selectPreset(btn, modal) {
+  var grid = document.getElementById(modal + "PresetGrid");
+  grid.querySelectorAll(".role-preset-card").forEach(function(c){ c.classList.remove("is-selected"); });
+  btn.classList.add("is-selected");
+  var preset = btn.getAttribute("data-preset");
+  document.getElementById(modal + "RolePreset").value = preset;
+  var permsGroup = document.getElementById(modal + "PermsGroup");
+  if (preset === "custom") {
+    permsGroup.style.display = "block";
+  } else {
+    permsGroup.style.display = "none";
+    // Pre-check the preset's perms in the grid so a later flip to Custom shows them.
+    buildPermsGrid(modal + "PermsGrid", PRESET_PERMS[preset] || []);
+  }
+}
+
+function serializeCustomPerms(form, modal) {
+  var preset = document.getElementById(modal + "RolePreset").value;
+  if (preset === "custom") {
+    var grid = document.getElementById(modal + "PermsGrid");
+    var picked = [];
+    grid.querySelectorAll("input[type=checkbox]:checked").forEach(function(cb){ picked.push(cb.value); });
+    document.getElementById(modal + "CustomPermsInput").value = JSON.stringify(picked);
+  } else {
+    document.getElementById(modal + "CustomPermsInput").value = JSON.stringify(PRESET_PERMS[preset] || []);
+  }
+  return true;
+}
+
+function genPassword() {
+  var c = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
+  var p = '';
+  for (var i = 0; i < 14; i++) p += c.charAt(Math.floor(Math.random() * c.length));
+  return p;
+}
+
+(function initAddModal(){
+  // Default-select Order Manager on first open.
+  var card = document.querySelector('#addPresetGrid .role-preset-card[data-preset="order_manager"]');
+  if (card) selectPreset(card, "add");
+  // Pre-fill generated password
+  document.getElementById('generatedPasswordInput').value = genPassword();
+})();
+
+// Re-generate password on each modal open
+document.getElementById('addAdminModal').addEventListener('DOMNodeInserted', function() {
+  if (document.getElementById('autoGenPw').checked) {
+    document.getElementById('generatedPasswordInput').value = genPassword();
+  }
+});
+
+// On form submit: if auto-gen, set the password field from the hidden input
+document.getElementById('addAdminForm').addEventListener('submit', function(e) {
+  if (document.getElementById('autoGenPw').checked) {
+    // Create a hidden password field with the generated value
+    var pw = document.getElementById('generatedPasswordInput').value;
+    var inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = 'password';
+    inp.value = pw;
+    this.appendChild(inp);
+    // Store for credentials modal
+    window._lastGenPw = pw;
+  }
+});
+
+// After form submission succeeds, show credentials modal
+var _origAddFormAction = document.getElementById('addAdminForm').action;
+document.getElementById('addAdminForm').addEventListener('submit', function(e) {
+  // Let the form submit normally — after redirect back, check flash
+});
+
+// Show credentials modal after new admin creation
+(function(){
+  if (NEW_CREDS) {
+    document.getElementById('credsUsername').value = NEW_CREDS.username;
+    document.getElementById('credsPassword').value = NEW_CREDS.password;
+    document.getElementById('credsUrl').value = window.location.origin + '/admin/login';
+    document.getElementById('showCredsModal').classList.add('modal--open');
+  }
+})();
+
+function openEditModal(id, username, role, perms, isActive) {
+  document.getElementById("editAdminName").textContent = username;
+  document.getElementById("editAdminForm").action = "/admin/team/edit/" + id;
+  var permList;
+  try { permList = JSON.parse(perms || "[]"); } catch(e){ permList = []; }
+  if (!Array.isArray(permList)) permList = [];
+  var isPreset = ["order_manager","catalog_manager","support_agent"].indexOf(role) > -1;
+  var preset = isPreset ? role : "custom";
+  var card = document.querySelector('#editPresetGrid .role-preset-card[data-preset="' + preset + '"]');
+  if (card) selectPreset(card, "edit");
+  buildPermsGrid("editPermsGrid", isPreset ? (PRESET_PERMS[role] || []) : permList);
+  document.getElementById("editPermsGroup").style.display = "block";
+  document.getElementById("editIsActive").checked = isActive === 1 || isActive === "1";
+  document.getElementById("editAdminModal").classList.add("modal--open");
+}
+</script>
+{% endblock %}

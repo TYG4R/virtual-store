@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}My Library — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container" style="max-width:980px;">
+    <div class="section-head reveal" style="margin-bottom:2rem;">
+      <span class="eyebrow">Account</span>
+      <h2>My Library</h2>
+      <p class="lead" style="max-width:700px;">Everything you've purchased is here, grouped by product — no need to remember which order had what.</p>
+    </div>
+
+    {% if orders %}
+    <div style="display:flex; flex-direction:column; gap:1.25rem;">
+      {% set seen_products = [] %}
+      {% for o in orders %}
+        {% set pid = o.product_id %}
+        {% if pid not in seen_products %}
+        {% set _ = seen_products.append(pid) %}
+        {% set product = products.get(pid, {}) %}
+        {% set files = product_files.get(pid, []) %}
+        <article class="admin-order-card" style="display:block;">
+          <div class="admin-order-card__top">
+            <span class="admin-order-card__ref">{{ product.name or o.product_name }}</span>
+          </div>
+          <div class="admin-order-card__bottom" style="gap:0.5rem; flex-wrap:wrap;">
+            <div style="font-size:0.82rem; color:var(--grey-500);">
+              Purchased {{ o.delivered_at[:10] if o.delivered_at else '' }}
+              · Order <a href="{{ url_for('track_order') }}?order_ref={{ o.order_ref }}&email=" style="color:var(--accent);">{{ o.order_ref }}</a>
+            </div>
+
+            {# Render delivery content #}
+            {% if o.delivery_message %}
+              {% import '_delivery_block.html' as dblock with context %}
+              {{ dblock.delivery_block(o, settings, [], {}, product.delivery_content_type) }}
+            {% elif files %}
+              <div style="margin-top:0.5rem;">
+                {% for f in files %}
+                <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; margin-bottom:0.3rem;">
+                  <span>📎 {{ f.original_name }}
+                    {% if f.version and f.version > 1 %}<span class="badge badge--version">v{{ f.version }}</span>{% endif %}
+                    ({{ '{:,}'.format(f.file_size//1024) if f.file_size > 1024 else f.file_size }} KB)</span>
+                  <span style="color:var(--grey-500); font-size:0.78rem;">File attached to product</span>
+                </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <a href="{{ url_for('product_detail', slug=product.slug) }}" class="btn btn--outline btn--sm" style="margin-top:0.3rem;">View Product</a>
+          </div>
+        </article>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <h3>Your library is empty</h3>
+      <p>Once you've received a digital delivery, it'll show up here automatically so you can access it anytime — no need to dig through old orders.</p>
+      <a href="{{ url_for('home') }}#products" class="btn btn--outline">Browse Products</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script defer src="{{ url_for('static', filename='js/delivery.js') }}?v={{ static_version }}"></script>
+{% endblock %}

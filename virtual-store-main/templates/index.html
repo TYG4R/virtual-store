@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% from "_skeleton.html" import skeleton_cards %}
+{% import '_filters.html' as filters %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero__watermark" aria-hidden="true">{{ settings.site_name }}</div>
+  <div class="container">
+    <div class="hero__rule"></div>
+    <span class="eyebrow">{{ settings.site_tagline }}</span>
+    <h1>{{ settings.hero_title }}</h1>
+    <p>{{ settings.hero_subtitle }}</p>
+    <div class="hero__cta-group">
+      <a href="#products" class="btn">Explore the Catalogue</a>
+      {% if not customer_logged_in %}
+      <a href="#" onclick="openAuthModal(); return false;" class="btn btn--outline hero__cta-secondary" data-auth-signed-out>Join with Phone</a>
+      {% endif %}
+    </div>
+    <div class="hero__scroll-cue">
+      <a href="#products" aria-label="Scroll to products">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12l7 7 7-7"></path></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<div class="marquee" id="marqueeEasterEgg">
+  <div class="marquee__track">
+    <span>Secure Checkout</span><span class="marquee__sep">✦</span><span>Considered Craft</span><span class="marquee__sep">✦</span><span>Curated Selection</span><span class="marquee__sep">✦</span><span>Handled With Care</span><span class="marquee__sep">✦</span>
+    <span>Secure Checkout</span><span class="marquee__sep">✦</span><span>Considered Craft</span><span class="marquee__sep">✦</span><span>Curated Selection</span><span class="marquee__sep">✦</span><span>Handled With Care</span><span class="marquee__sep">✦</span>
+  </div>
+</div>
+<script nonce="{{ csp_nonce }}">!function(){var m=document.getElementById("marqueeEasterEgg"),c=0,t=null;if(!m)return;m.addEventListener("click",function(){c++;if(t)clearTimeout(t);t=setTimeout(function(){c=0},2000);if(c>=3){c=0;var n="MARQUEE10";navigator.clipboard&&navigator.clipboard.writeText(n).catch(function(){});var a=document.createElement("div");a.style.cssText="position:fixed;bottom:6rem;left:50%;transform:translateX(-50%);background:var(--black);color:var(--white);padding:0.7rem 1.3rem;border-radius:8px;z-index:99999;font-size:0.85rem;text-align:center;pointer-events:none;transition:opacity .3s;box-shadow:0 4px 20px rgba(0,0,0,0.2)";a.innerHTML='🎉 Secret unlocked! Use code <strong>'+n+'</strong> for 10% off';document.body.appendChild(a);setTimeout(function(){a.style.opacity="0";setTimeout(function(){a.remove()},300)},3500)}},{passive:true})}();</script>
+
+<div class="feature-strip">
+  <div class="feature-strip__item">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    {% if test_checkout_mode %}Testing Mode Active{% elif razorpay_configured %}Secure Razorpay Checkout{% else %}Checkout Temporarily Unavailable{% endif %}
+  </div>
+  <div class="feature-strip__item">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+    Instant Digital Delivery
+  </div>
+  <div class="feature-strip__item">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+    Track Orders Anytime
+  </div>
+  <div class="feature-strip__item">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    Dedicated Support
+  </div>
+</div>
+
+{% for section in sections %}
+<section class="section {{ 'section--invert' if loop.index is odd else '' }}">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">{{ loop.index }} / {{ sections|length }}</span>
+      <h2>{{ section.title }}</h2>
+    </div>
+    <div class="reveal" style="max-width:720px;margin:0 auto;text-align:center;white-space:pre-line;">
+      {{ section.content }}
+    </div>
+  </div>
+</section>
+{% endfor %}
+
+<section class="section" id="products">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">The Catalogue</span>
+      <h2>{% if search_query %}Results for &ldquo;{{ search_query }}&rdquo;{% else %}Our Products{% endif %}</h2>
+      {% if search_query %}<p style="opacity:0.6;font-size:0.85rem;">{{ products|length }} product{% if products|length != 1 %}s{% endif %} found</p>{% endif %}
+    </div>
+
+    {% if categories and not search_query %}
+    <div class="filter-tabs reveal">
+      <a href="{{ url_for('home') }}#products" class="filter-tab {{ 'active' if not active_category }}">All</a>
+      {% for c in categories %}
+      <a href="{{ url_for('home', category=c) }}#products" class="filter-tab {{ 'active' if active_category == c }}">{{ c }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {{ filters.filters_panel(categories, active_category, active_filters, sort, filter_price_min, filter_price_max) }}
+
+    <div id="productGrid" data-loading="false">
+    {% if products %}
+      <div class="sort-bar reveal">
+        <span class="sort-bar__label">{{ products|length }} item{{ 's' if products|length != 1 }}</span>
+        <div class="sort-bar__right">
+          <label for="sortSelect" class="sort-bar__label">Sort by</label>
+          <select id="sortSelect" onchange="applySort(this.value)">
+            <option value="">Featured</option>
+            <option value="newest" {{ 'selected' if sort == 'newest' }}>Newest</option>
+            <option value="price_low" {{ 'selected' if sort == 'price_low' }}>Price: Low to High</option>
+            <option value="price_high" {{ 'selected' if sort == 'price_high' }}>Price: High to Low</option>
+            <option value="name" {{ 'selected' if sort == 'name' }}>Name: A to Z</option>
+            <option value="popular" {{ 'selected' if sort == 'popular' }}>🔥 Popular</option>
+          </select>
+        </div>
+      </div>
+      <script nonce="{{ csp_nonce }}">
+      function applySort(val) {
+        var url = new URL(window.location);
+        if (val) url.searchParams.set('sort', val);
+        else url.searchParams.delete('sort');
+        url.hash = 'products';
+        window.location = url.toString();
+      }
+      </script>
+      {% endif %}
+      <div id="productGridSkeleton" style="display:none;">
+        {{ skeleton_cards(6) }}
+      </div>
+      {% if products %}
+      <div class="grid">
+        {% for p in products %}
+      {% set p_sold_out = p.quantity is not none and p.quantity <= 0 %}
+      {% set p_low_stock = p.quantity is not none and p.quantity > 0 and p.quantity <= 5 %}
+      <div class="card reveal {% if p_sold_out %}card--sold-out{% endif %}" style="--i: {{ loop.index0 }};">
+        <a class="card__link" href="{{ url_for('product_detail', slug=p.slug) }}">
+          <div class="card__image" data-name="{{ p.name }}"{% if product_images[p.id] %} style="--card-bg: url({{ url_for('uploaded_file', filename=product_images[p.id]) }})"{% endif %}>
+            {% if p.ribbon %}<span class="card__ribbon card__ribbon--{{ p.ribbon|lower }}">{{ p.ribbon }}</span>{% endif %}
+            {% if p.id in new_product_ids and not p.ribbon %}<span class="card__badge">New</span>{% endif %}
+            {% if p_sold_out %}<span class="card__sold-out">Sold Out</span>{% endif %}
+            {% if p_low_stock %}<span class="card__low-stock">{{ p.quantity }} left</span>{% endif %}
+            {% set sc = sold_counts.get(p.id, 0) %}{% if sc > 0 %}<span class="card__sold-badge">{{ sc }} sold</span>{% endif %}
+            {% if owned_ids and p.id in owned_ids %}<span class="badge badge--owned">Owned</span>{% endif %}
+            {% if product_images[p.id] %}
+              <img src="{{ url_for('uploaded_file', filename=product_images[p.id]) }}" alt="{{ p.name }}" loading="lazy" width="400" height="500">
+            {% else %}
+              <div class="card__placeholder">{{ p.name[0]|upper }}</div>
+            {% endif %}
+          </div>
+          {% if p.category %}<div class="card__category">{{ p.category }}</div>{% endif %}
+          <div class="card__title">{{ p.name }}</div>
+          <div class="card__price">
+            {% if p.compare_price and p.compare_price > p.price %}
+              <span class="card__price-old">{{ settings.currency_symbol }}{{ "{:,}".format(p.compare_price) }}</span>
+              <span class="card__price-new">{{ settings.currency_symbol }}{{ "{:,}".format(p.price) }}</span>
+              <span class="card__price-save">Save {{ settings.currency_symbol }}{{ "{:,}".format(p.compare_price - p.price) }}</span>
+            {% else %}
+              {{ settings.currency_symbol }}{{ "{:,}".format(p.price) }}
+            {% endif %}
+          </div>
+        </a>
+        <button class="card__quick-view" data-product-id="{{ p.id }}" type="button" aria-label="Quick view">Quick View</button>
+        <form class="add-to-cart-form card__add-form" action="{{ url_for('cart_add') }}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="product_id" value="{{ p.id }}">
+          <input type="hidden" name="quantity" value="1">
+          <button type="submit" class="card__add-btn" {% if p_sold_out %}disabled{% endif %}>{% if p_sold_out %}Sold Out{% else %}+ Add to Cart{% endif %}</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-state__icon">
+        {% if search_query %}
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="8" x2="14" y2="14"></line><line x1="14" y1="8" x2="8" y2="14"></line></svg>
+        {% else %}
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 3h18v18H3z"></path><path d="M3 9h18M9 3v18"></path></svg>
+        {% endif %}
+      </div>
+      <h3>{% if search_query %}No matches found{% elif active_category %}Nothing in this category{% else %}Nothing here yet{% endif %}</h3>
+      <p>{% if search_query %}No products match "{{ search_query }}". Try a different search.{% elif active_category %}No products in "{{ active_category }}" right now.{% else %}Check back soon for new arrivals.{% endif %}</p>
+      <a href="{{ url_for('home') }}#products" class="btn btn--outline">Browse Everything</a>
+    </div>
+    {% endif %}
+    </div> <!-- /#productGrid -->
+  </div>
+</section>
+
+<!-- Recently viewed - powered by localStorage, no backend needed -->
+<section class="section section--tight" id="recently-viewed" style="display:none;">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Pick up where you left off</span>
+      <h2>Recently Viewed</h2>
+    </div>
+    <div class="grid" id="recentlyViewedGrid"></div>
+  </div>
+</section>
+
+<section class="section section--tight" id="about">
+  <div class="container reveal" style="max-width:720px; text-align:center;">
+    <span class="eyebrow">{{ settings.about_title }}</span>
+    <div style="white-space:pre-line; margin-top:1rem;">{{ settings.about_content }}</div>
+  </div>
+</section>
+
+{% if testimonials %}
+<section class="section section--invert" id="testimonials">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">What People Say</span>
+      <h2>Trusted By Our Customers</h2>
+    </div>
+    <div class="testimonial-grid">
+      {% for t in testimonials %}
+      <div class="testimonial-card reveal" style="--i: {{ loop.index0 }};">
+        <div class="testimonial-stars">{{ "★" * t.rating }}{{ "☆" * (5 - t.rating) }}</div>
+        <p class="testimonial-quote">&ldquo;{{ t.quote }}&rdquo;</p>
+        <div class="testimonial-name">{{ t.customer_name }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if faqs %}
+<section class="section" id="faq">
+  <div class="container" style="max-width:760px;">
+    <div class="section-head reveal">
+      <span class="eyebrow">Questions</span>
+      <h2>Frequently Asked</h2>
+    </div>
+    <div class="faq-list reveal">
+      {% for f in faqs %}
+      <details class="faq-item">
+        <summary>{{ f.question }}</summary>
+        <div class="faq-answer">{{ f.answer }}</div>
+      </details>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section section--tight section--invert" id="newsletter">
+  <div class="container" style="max-width:520px; text-align:center;">
+    <span class="eyebrow">Stay in the Loop</span>
+    <h2 style="margin-bottom:1.5rem;">Join Our List</h2>
+    <form method="POST" action="{{ url_for('newsletter_subscribe') }}" class="newsletter-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="email" name="email" placeholder="you@example.com" required>
+      {% if turnstile_enabled %}
+      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="dark" style="margin:0.75rem auto 0;"></div>
+      {% endif %}
+      <button class="btn btn--invert" type="submit">Subscribe</button>
+    </form>
+  </div>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+// Skeleton loading: show skeleton on filter tab click, search submit, and sort change
+(function() {
+  var skeleton = document.getElementById('productGridSkeleton');
+  var grid = document.getElementById('productGrid');
+  if (!skeleton || !grid) return;
+
+  function showSkeleton() {
+    skeleton.style.display = '';
+    grid.style.display = 'none';
+  }
+
+  // Filter tab clicks (category links)
+  var tabs = document.querySelectorAll('.filter-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener('click', function(e) {
+      showSkeleton();
+    });
+  }
+
+  // Search form submit (both desktop and mobile nav)
+  var searchForms = document.querySelectorAll('.nav__search, .mobile-menu__search form');
+  for (var i = 0; i < searchForms.length; i++) {
+    searchForms[i].addEventListener('submit', function() {
+      showSkeleton();
+    });
+  }
+
+  // Sort select change
+  var sortSelect = document.getElementById('sortSelect');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', function() {
+      showSkeleton();
+    });
+  }
+})();
+</script>
+<script nonce="{{ csp_nonce }}">
+// Render recently viewed products on the homepage
+(function() {
+  try {
+    var viewed = JSON.parse(localStorage.getItem("recentlyViewed") || "[]");
+    if (viewed.length < 2) return;
+    var section = document.getElementById("recently-viewed");
+    var grid = document.getElementById("recentlyViewedGrid");
+    if (!section || !grid) return;
+    viewed.slice(0, 4).forEach(function(p) {
+      var card = document.createElement("div");
+      card.className = "card reveal";
+      var imgHtml = p.image
+        ? '<img src="/uploads/' + p.image + '" alt="' + p.name + '" loading="lazy" width="400" height="500">'
+        : '<div class="card__placeholder">' + p.name.charAt(0).toUpperCase() + '</div>';
+      card.innerHTML =
+        '<a class="card__link" href="/product/' + p.slug + '">' +
+          '<div class="card__image" data-name="' + (''+p.name).replace(/"/g,'&quot;') + '" style="--card-bg: url(' + (p.image ? "/uploads/" + p.image : "") + ')">' + imgHtml + '</div>' +
+          (p.category ? '<div class="card__category">' + p.category + '</div>' : '') +
+          '<div class="card__title">' + p.name + '</div>' +
+          '<div class="card__price">' + p.currency + p.price.toLocaleString() + '</div>' +
+        '</a>';
+      grid.appendChild(card);
+    });
+    section.style.display = "block";
+  } catch(e) {}
+})();
+</script>
+{% if not customer_logged_in %}
+<div class="signup-prompt" id="signupPrompt" data-auth-signed-out>
+  <button class="signup-prompt__close" onclick="dismissSignupPrompt()" aria-label="Close">&times;</button>
+  <span class="signup-prompt__text"><strong>Unlock member perks.</strong> Sign in with your phone for instant checkout and exclusive deals.</span>
+  <button class="btn btn--invert" onclick="dismissSignupPrompt(); openAuthModal();">Sign In Now</button>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function() {
+  var dismissed = false;
+  try { dismissed = localStorage.getItem("signupPromptDismissed"); } catch(e) {}
+  if (!dismissed) {
+    setTimeout(function() {
+      var p = document.getElementById("signupPrompt");
+      if (p) p.classList.add("show");
+    }, 6000);
+  }
+  window.dismissSignupPrompt = function() {
+    var p = document.getElementById("signupPrompt");
+    if (p) p.classList.remove("show");
+    try { localStorage.setItem("signupPromptDismissed", "1"); } catch(e) {}
+  };
+})();
+</script>
+{% endif %}
+{% endblock %}

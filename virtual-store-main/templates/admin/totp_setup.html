@@ -1,0 +1,187 @@
+{% extends "admin/base.html" %}
+{% block title %}Two-Factor Auth{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Two-Factor Authentication</h1></div>
+
+<div class="card-box" style="max-width:520px;">
+  {% if totp_enabled and not show_recovery_codes %}
+    <h3>✅ Two-Factor Auth is Enabled</h3>
+    <p>Your account is protected with time-based one-time passwords (TOTP).</p>
+    <p style="font-size:0.85rem;color:var(--grey-500);">Use your authenticator app (Google Authenticator, Authy, 1Password, etc.) to generate a 6-digit code when logging in.</p>
+    <form method="POST" onsubmit="return confirm('Disable two-factor authentication? This lowers your account security.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="disable">
+      <div class="field">
+        <label>Enter your current password to disable 2FA</label>
+        <input type="password" name="password" required placeholder="Your current password" autocomplete="current-password">
+      </div>
+      <button class="btn btn--danger btn--sm" type="submit">Disable Two-Factor Auth</button>
+    </form>
+    <hr style="margin:1.5rem 0;">
+    <details>
+      <summary style="cursor:pointer;font-size:0.85rem;color:var(--grey-500);">Lost your authenticator app? Use a recovery code</summary>
+      <form method="POST" style="margin-top:0.75rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="use_recovery">
+        <div class="field">
+          <label>Enter one of your recovery codes</label>
+          <input type="text" name="code" inputmode="text" required placeholder="e.g. A1B2C3D4E5" style="text-transform:uppercase;font-family:monospace;">
+        </div>
+        <button class="btn btn--sm" type="submit">Use Recovery Code</button>
+      </form>
+    </details>
+
+  {% elif totp_enabled and show_recovery_codes %}
+    <h3>🔐 Save Your Recovery Codes</h3>
+    <p style="font-size:0.85rem;color:var(--grey-500);">
+      These 10 single-use codes let you log in if you lose access to your authenticator app.
+      <strong>Save them somewhere safe</strong> — each code can only be used once, and they won't be shown again.
+    </p>
+    <div style="background:var(--grey-100);border-radius:6px;padding:1rem;margin:1rem 0;font-family:monospace;font-size:1rem;letter-spacing:0.1rem;">
+      {% for code in recovery_codes %}
+        <div style="padding:0.25rem 0;">{{ code }}</div>
+      {% endfor %}
+    </div>
+    <button class="btn btn--sm btn--outline" onclick="navigator.clipboard.writeText({{ recovery_codes|join('\n')|tojson }});this.textContent='Copied!';setTimeout(function(){this.textContent='Copy All Codes'},2000)">Copy All Codes</button>
+    <p style="margin-top:1rem;">
+      <a href="{{ url_for('admin_totp_setup') }}" class="btn btn--sm">I've saved them — continue</a>
+    </p>
+
+  {% else %}
+    <h3>🔐 Set Up Two-Factor Auth</h3>
+    {% if secret %}
+    <p style="font-size:0.85rem;color:var(--grey-500);">Scan this QR code with your authenticator app, or tap the link below on your phone.</p>
+
+    {% set totp_uri = 'otpauth://totp/' ~ settings.site_name|urlencode ~ ':' ~ session.admin_username|urlencode ~ '?secret=' ~ secret ~ '&issuer=' ~ settings.site_name|urlencode %}
+
+    {# --- Authenticator app download links --- #}
+    <div style="margin:1rem 0;padding:0.75rem;background:var(--grey-100);border-radius:6px;font-size:0.8rem;">
+      <strong>Need an authenticator app?</strong>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+        {% set is_mobile = request.user_agent.ios or request.user_agent.android %}
+        {% if is_mobile %}
+          {% if request.user_agent.ios %}
+            <a href="https://apps.apple.com/app/google-authenticator/id388497605" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Google Auth (iOS)</a>
+            <a href="https://apps.apple.com/app/microsoft-authenticator/id983156458" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Microsoft Auth (iOS)</a>
+            <a href="https://apps.apple.com/app/authy/id494168017" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Authy (iOS)</a>
+          {% elif request.user_agent.android %}
+            <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Google Auth (Android)</a>
+            <a href="https://play.google.com/store/apps/details?id=com.azure.authenticator" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Microsoft Auth (Android)</a>
+            <a href="https://play.google.com/store/apps/details?id=com.authy.authy" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Authy (Android)</a>
+          {% endif %}
+        {% else %}
+          <a href="https://apps.apple.com/app/google-authenticator/id388497605" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Google Auth (iOS)</a>
+          <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank" class="btn btn--sm btn--outline" rel="noopener">Google Auth (Android)</a>
+          <span style="font-size:0.75rem;color:var(--grey-500);align-self:center;">or</span>
+          <details style="display:inline-block;font-size:0.75rem;">
+            <summary style="cursor:pointer;">More options</summary>
+            <div style="margin-top:0.25rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <a href="https://apps.apple.com/app/microsoft-authenticator/id983156458" target="_blank" rel="noopener">Microsoft Auth</a>
+              <a href="https://play.google.com/store/apps/details?id=com.azure.authenticator" target="_blank" rel="noopener">Microsoft Auth (Android)</a>
+              <a href="https://apps.apple.com/app/authy/id494168017" target="_blank" rel="noopener">Authy (iOS)</a>
+              <a href="https://play.google.com/store/apps/details?id=com.authy.authy" target="_blank" rel="noopener">Authy (Android)</a>
+            </div>
+          </details>
+        {% endif %}
+      </div>
+    </div>
+
+    {# --- QR Code: styled with qr-code-styling (rounded dots, gradient) --- #}
+    <div style="text-align:center;margin:1.5rem 0;">
+      <div id="qrcode" style="display:inline-block;border-radius:14px;overflow:hidden;width:220px;height:220px;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,0.18);"></div>
+    </div>
+
+    {# --- Same-device otpauth:// link (shown on mobile) --- #}
+    {% if is_mobile %}
+    <div style="text-align:center;margin-bottom:1rem;">
+      <a href="{{ totp_uri }}" class="btn btn--sm btn--outline" onclick="this.textContent='Opening authenticator...';setTimeout(function(){this.textContent='Open in Authenticator App'},5000)">
+        Open in Authenticator App
+      </a>
+      <p style="font-size:0.75rem;color:var(--grey-500);margin-top:0.25rem;">Taps directly into Google Auth, Authy, etc. without scanning</p>
+    </div>
+    {% endif %}
+
+    {# --- Save QR button (uses library download, not an href that can leak HTML) --- #}
+    <div style="text-align:center;margin-bottom:0.5rem;">
+      <button type="button" id="saveQrBtn" class="btn btn--sm btn--outline" style="display:none;">⬇ Download QR Code</button>
+    </div>
+
+    {# --- Manual secret --- #}
+    <div style="font-size:0.85rem;text-align:center;margin-bottom:1.5rem;">
+      <strong>Secret key:</strong> <code style="background:var(--grey-100);padding:0.2rem 0.5rem;border-radius:3px;font-size:0.9rem;">{{ secret }}</code>
+      <button type="button" class="btn btn--sm btn--outline" style="margin-left:0.3rem;" onclick="navigator.clipboard.writeText('{{ secret }}');this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'},2000)">Copy</button>
+    </div>
+
+    {# --- Verify form --- #}
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="secret" value="{{ secret }}">
+      <input type="hidden" name="action" value="enable">
+      <div class="field">
+        <label>Enter the 6-digit code from your authenticator app</label>
+        <input type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required placeholder="000000" style="font-size:1.2rem;letter-spacing:0.3rem;text-align:center;">
+      </div>
+      <button class="btn" type="submit">Enable Two-Factor Auth</button>
+    </form>
+    {% else %}
+    <p>Your setup secret is not available. Please contact support.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if secret and not totp_enabled %}
+<script src="https://unpkg.com/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
+<script nonce="{{ csp_nonce }}">
+(function() {
+  var uri = {{ totp_uri|tojson }};
+  var el = document.getElementById('qrcode');
+  if (!el || typeof QRCodeStyling === 'undefined') return;
+
+  var qr = new QRCodeStyling({
+    width: 220,
+    height: 220,
+    type: 'canvas',
+    data: uri,
+    image: '',
+    margin: 10,
+    qrOptions: { errorCorrectionLevel: 'H' },
+    dotsOptions: {
+      type: 'rounded',
+      gradient: {
+        type: 'linear',
+        rotation: Math.PI / 4,
+        colorStops: [
+          { offset: 0, color: '#1a1a2e' },
+          { offset: 0.5, color: '#4b3f72' },
+          { offset: 1, color: '#f59e0b' }
+        ]
+      }
+    },
+    backgroundOptions: { color: '#ffffff' },
+    cornersSquareOptions: {
+      type: 'extra-rounded',
+      color: '#1a1a2e'
+    },
+    cornersDotOptions: {
+      type: 'dot',
+      color: '#f59e0b'
+    }
+  });
+  qr.append(el);
+
+  // Show the download button once the canvas has rendered.
+  setTimeout(function() {
+    var btn = document.getElementById('saveQrBtn');
+    if (!btn) return;
+    btn.style.display = 'inline-block';
+    btn.addEventListener('click', function() {
+      // Library download writes a real PNG blob — never the page HTML.
+      qr.download({ name: '2fa-qr', extension: 'png' });
+    });
+  }, 350);
+})();
+</script>
+{% endif %}
+{% endblock %}

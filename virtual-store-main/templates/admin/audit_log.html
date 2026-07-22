@@ -1,0 +1,88 @@
+{% extends "admin/base.html" %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+<div class="admin-topbar">
+  <h1>Audit Log</h1>
+  <div style="display:flex;gap:0.5rem;">
+    <span style="padding:0.4rem 0.75rem;font-size:0.8rem;color:var(--grey-500);background:var(--surface-2);border-radius:4px;">
+      {{ total }} total entries
+    </span>
+    <a href="{{ url_for('admin_audit_log_export', action=action_filter, from=from_date, to=to_date) }}" class="btn btn--outline btn--sm">Download CSV</a>
+  </div>
+</div>
+
+<form method="GET" action="{{ url_for('admin_audit_log') }}" style="margin-bottom:1.5rem;display:flex;gap:0.75rem;flex-wrap:wrap;align-items:end;">
+  <div style="flex:1;min-width:160px;">
+    <label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--grey-500);margin-bottom:0.25rem;">Action</label>
+    <select name="action" style="width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:0.85rem;background:var(--surface);">
+      <option value="">All actions</option>
+      {% for a in actions %}
+      <option value="{{ a }}" {{ 'selected' if action_filter == a }}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="min-width:140px;">
+    <label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--grey-500);margin-bottom:0.25rem;">From</label>
+    <input type="date" name="from" value="{{ from_date }}" style="width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:0.85rem;background:var(--surface);">
+  </div>
+  <div style="min-width:140px;">
+    <label style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--grey-500);margin-bottom:0.25rem;">To</label>
+    <input type="date" name="to" value="{{ to_date }}" style="width:100%;padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:3px;font-family:var(--sans);font-size:0.85rem;background:var(--surface);">
+  </div>
+  <div style="display:flex;gap:0.5rem;align-items:end;">
+    <button type="submit" class="btn btn--sm">Filter</button>
+    <a href="{{ url_for('admin_audit_log') }}" class="btn btn--sm btn--outline">Clear</a>
+  </div>
+</form>
+
+{% if entries %}
+<div class="table-responsive">
+<table class="table">
+  <thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>Admin</th>
+      <th>Action</th>
+      <th>Target</th>
+      <th>Details</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for e in entries %}
+    <tr>
+      <td style="white-space:nowrap;font-size:0.8rem;color:var(--grey-500);">{{ e.created_at }}</td>
+      <td>{{ e.username or 'unknown' }}</td>
+      <td><code>{{ e.action }}</code></td>
+      <td style="color:var(--grey-500);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ e.target }}">{{ e.target }}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.85rem;" title="{{ e.details }}">{{ e.details }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if total_pages > 1 %}
+<div style="display:flex;gap:0.5rem;justify-content:center;align-items:center;padding:1.25rem 0;">
+  {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&action={{ action_filter }}&from={{ from_date }}&to={{ to_date }}" class="btn btn--sm btn--outline">&larr; Newer</a>
+  {% endif %}
+  <span style="padding:0.35rem 0.75rem;font-size:0.85rem;color:var(--grey-500);">
+    Page {{ page }} of {{ total_pages }}
+    <span style="margin-left:0.5rem;font-size:0.75rem;">({{ total }} entries)</span>
+  </span>
+  {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}&action={{ action_filter }}&from={{ from_date }}&to={{ to_date }}" class="btn btn--sm btn--outline">Older &rarr;</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  {% if action_filter or from_date or to_date %}
+    No audit log entries match your filters.
+  {% else %}
+    No audit log entries yet.
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

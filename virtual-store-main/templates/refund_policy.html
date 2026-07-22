@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ settings.site_name }} — Refund Policy{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "Refund Policy",
+  "description": "Refund and cancellation policy for {{ settings.site_name }}.",
+  "url": "{{ request.url_root.rstrip('/') }}/refund-policy",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "{{ settings.site_name }}"
+  }
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<main class="legal">
+  <div class="legal__container">
+    <aside class="legal__toc" aria-label="On this page">
+      <nav aria-label="Table of contents">
+        <span class="legal__toc-title">On this page</span>
+        <ul>
+          <li><a href="#policy">Refund Policy</a></li>
+          <li><a href="{{ url_for('terms_of_service') }}">Terms of Service →</a></li>
+          <li><a href="{{ url_for('privacy_policy') }}">Privacy Policy →</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <div class="legal__content">
+      <h1>Refund Policy</h1>
+
+      <section id="policy" class="legal__section">
+        {{ settings.refund_policy_text|safe }}
+      </section>
+
+      <section class="legal__section legal__section--muted">
+        <h2>Still have questions?</h2>
+        <p>
+          Contact us at
+          <a href="mailto:{{ settings.contact_email }}">{{ settings.contact_email }}</a>
+          {% if settings.contact_phone %} or call
+          <a href="tel:{{ settings.contact_phone }}">{{ settings.contact_phone }}</a>{% endif %}.
+        </p>
+      </section>
+
+      <p class="legal__updated">Last updated: {{ settings.last_policy_update|default('July 2026') }}</p>
+    </div>
+  </div>
+</main>
+{% endblock %}

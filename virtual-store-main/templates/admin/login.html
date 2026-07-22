@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+{% if turnstile_enabled %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="login-shell">
+  <div class="login-box">
+    <h1>Admin Panel</h1>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash flash--{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" name="username" required autofocus>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" name="password" required>
+      </div>
+      {% if show_totp %}
+      <div class="field">
+        <label>Authenticator Code</label>
+        <input type="text" name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" autocomplete="one-time-code" style="font-size:1.2rem;letter-spacing:0.3rem;text-align:center;">
+        <small>Enter the 6-digit code from your authenticator app.</small>
+      </div>
+      <div class="field" style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border);">
+        <label>Recovery Code</label>
+        <input type="text" name="recovery_code" placeholder="xxxxx-xxxxx" autocomplete="off" style="font-size:1.2rem;letter-spacing:0.15rem;text-align:center;">
+        <small>Lost your authenticator? Use one of your recovery codes instead.</small>
+      </div>
+      {% endif %}
+      {% if turnstile_enabled %}
+      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin-bottom:1.25rem;"></div>
+      {% endif %}
+      <button class="btn btn--full" type="submit">Log In</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

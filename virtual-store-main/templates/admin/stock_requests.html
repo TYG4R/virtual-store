@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block title %}Stock Requests{% endblock %}
+{% block content %}
+<div class="admin-topbar"><h1>Back-in-Stock Requests</h1></div>
+
+{% if requests %}
+{% set seen_product = namespace(pid=0) %}
+<table class="admin-table">
+  <thead>
+    <tr><th>Customer</th><th>Product</th><th>Status</th><th>Requested</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+  {% for r in requests %}
+    <tr>
+      <td>
+        <strong>{{ r.customer_name or 'Customer' }}</strong>
+        <br><span class="admin-table__muted">{{ r.customer_email }}{% if r.customer_phone %} · {{ r.customer_phone }}{% endif %}</span>
+      </td>
+      <td>{{ r.product_name }}</td>
+      <td>{% if r.notified %}<span class="badge badge--delivered">Notified</span>{% else %}<span class="badge badge--warning">Waiting</span>{% endif %}</td>
+      <td class="admin-table__muted" style="white-space:nowrap;">{{ r.created_at[:10] if r.created_at else '' }}</td>
+      <td>
+        {% if not r.notified %}
+          {% if seen_product.pid != r.product_id %}
+            {% set seen_product.pid = r.product_id %}
+            <form method="POST" action="{{ url_for('admin_stock_request_notify_all', product_id=r.product_id) }}" style="display:inline;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn--sm btn--outline" onclick="return confirm('Notify ALL waiting customers for {{ r.product_name }}?')">Notify All</button>
+            </form>
+          {% endif %}
+          <form method="POST" action="{{ url_for('admin_stock_request_notify', request_id=r.id) }}" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn--sm">Notify</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state" style="padding:3rem;text-align:center;">
+  <p style="font-size:1.1rem;margin-bottom:0.5rem;">No waitlist requests yet.</p>
+  <p class="admin-table__muted">When a product is sold out and a customer clicks "Notify Me," their request shows up here.</p>
+</div>
+{% endif %}
+{% endblock %}

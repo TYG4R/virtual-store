@@ -1,0 +1,750 @@
+{% extends "base.html" %}
+{% from "_skeleton.html" import skeleton_cards %}
+{% block title %}{{ product.name }} — {{ settings.site_name }}{% endblock %}
+{% block og_title %}{{ product.name }} — {{ settings.site_name }}{% endblock %}
+{% block og_image %}{% if images %}<meta property="og:image" content="{{ url_for('uploaded_file', filename=images[0], _external=True) }}">{% endif %}{% endblock %}
+{% block head %}
+<meta name="description" content="{{ product.short_description or product.name }}">
+{% set active = product.active is defined and product.active %}
+{% set qty = product.quantity if product.quantity is not none else 0 %}
+{% if active and qty > 5 %}
+  {% set availability = "https://schema.org/InStock" %}
+{% elif active and qty > 0 and qty <= 5 %}
+  {% set availability = "https://schema.org/LimitedAvailability" %}
+{% else %}
+  {% set availability = "https://schema.org/OutOfStock" %}
+{% endif %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org/",
+  "@type": "Product",
+  "name": {{ product.name|tojson }},
+  "image": [{% for img in images %}{{ url_for('uploaded_file', filename=img, _external=True)|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}],
+  "description": {{ (product.short_description or product.name)|tojson }},
+  "sku": {{ product.slug|tojson }},
+  "brand": {
+    "@type": "Brand",
+    "name": {{ settings.site_name|tojson }}
+  },
+  "offers": {
+    "@type": "Offer",
+    "url": {{ request.url|tojson }},
+    "priceCurrency": "INR",
+    "price": {{ product.price|tojson }},
+    "availability": "{{ availability }}",
+    "itemCondition": "https://schema.org/NewCondition"
+  }
+}
+</script>
+{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="{{ url_for('home') }}">Home</a>
+      <span>/</span>
+      <a href="{{ url_for('home') }}#products">Shop</a>
+      {% if product.category %}<span>/</span><a href="{{ url_for('home', category=product.category) }}#products">{{ product.category }}</a>{% endif %}
+      <span>/</span>
+      <span aria-current="page">{{ product.name }}</span>
+    </nav>
+  </div>
+  <div id="productDetailSkeleton" class="container product-detail" style="display:none;">
+    <div style="display:flex;gap:2rem;flex-wrap:wrap;">
+      <div class="skeleton-pulse" style="flex:1;min-width:280px;aspect-ratio:4/5;border-radius:16px;"></div>
+      <div style="flex:1;min-width:280px;">
+        <div class="skeleton-pulse" style="height:1.2rem;width:40%;border-radius:999px;margin-bottom:0.75rem;"></div>
+        <div class="skeleton-pulse" style="height:2rem;width:70%;border-radius:999px;margin-bottom:0.75rem;"></div>
+        <div class="skeleton-pulse" style="height:1.5rem;width:30%;border-radius:999px;margin-bottom:1.5rem;"></div>
+        <div class="skeleton-pulse" style="height:0.9rem;width:100%;border-radius:8px;margin-bottom:0.5rem;"></div>
+        <div class="skeleton-pulse" style="height:0.9rem;width:85%;border-radius:8px;margin-bottom:0.5rem;"></div>
+        <div class="skeleton-pulse" style="height:0.9rem;width:60%;border-radius:8px;margin-bottom:2rem;"></div>
+        <div class="skeleton-pulse" style="height:2.8rem;width:100%;border-radius:12px;margin-bottom:1rem;"></div>
+        <div class="skeleton-pulse" style="height:2.8rem;width:100%;border-radius:12px;"></div>
+      </div>
+    </div>
+  </div>
+  <div id="productDetail" class="container product-detail" data-loading="false">
+    <div class="product-gallery reveal">
+      <div class="product-gallery__main" id="productGalleryMain">
+        {% if images %}
+          <img id="mainImage" src="{{ url_for('uploaded_file', filename=images[0]) }}" alt="{{ product.name }}" width="600" height="750">
+          {% if product.png_thumbnail is defined and product.png_thumbnail %}
+          <img class="png-layer" id="pngLayer" src="{{ url_for('uploaded_file', filename=product.png_thumbnail) }}" alt="{{ product.name }} overlay" loading="lazy">
+          {% endif %}
+        {% else %}
+          <div class="card__placeholder" style="height:100%;">{{ product.name[0]|upper }}</div>
+        {% endif %}
+        <button class="product-share-overlay" onclick="shareProduct()" aria-label="Share this product">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="share-icon-animated">
+            <circle cx="18" cy="5" r="3" class="share-dot share-dot-1"></circle>
+            <circle cx="6" cy="12" r="3" class="share-dot share-dot-2"></circle>
+            <circle cx="18" cy="19" r="3" class="share-dot share-dot-3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" class="share-line share-line-1"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" class="share-line share-line-2"></line>
+          </svg>
+        </button>
+      </div>
+      {% if images|length > 1 %}
+      <div class="product-gallery__thumbs">
+        {% for img in images %}
+          <img src="{{ url_for('uploaded_file', filename=img) }}" loading="lazy" decoding="async"
+               class="{{ 'active' if loop.first else '' }}"
+               loading="lazy" width="64" height="80"
+               alt="{{ product.name }} — view {{ loop.index }}"
+               tabindex="0" role="button"
+               onclick="swapGalleryImage(this.src, this)"
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();swapGalleryImage(this.src,this);}">
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if customer_logged_in %}
+      <div class="wishlist-heart-wrap">
+        <button class="wishlist-heart" id="wishlistHeart" data-product-id="{{ product.id }}" onclick="toggleWishlistHeart(this)" aria-label="Save to wishlist">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+        </button>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="product-info reveal" style="--i: 1;">
+      <span class="eyebrow">{{ product.category or settings.site_name }}</span>
+      {% if product.ribbon %}<span class="product-ribbon product-ribbon--{{ product.ribbon|lower }}">{{ product.ribbon }}</span>{% endif %}
+      <h1>{{ product.name }}</h1>
+      <div class="product-price">
+        {% if product.compare_price and product.compare_price > product.price %}
+          <span class="product-price__compare">{{ settings.currency_symbol }}{{ "{:,}".format(product.compare_price) }}</span>
+          <span id="priceOriginal" class="product-price__current">{{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}</span>
+          <span id="priceDiscounted" class="product-price__discounted" style="display:none;"></span>
+          <span class="product-price__save">Save {{ settings.currency_symbol }}{{ "{:,}".format(product.compare_price - product.price) }} ({{ ((product.compare_price - product.price) / product.compare_price * 100)|round(0)|int }}%)</span>
+        {% else %}
+          <span id="priceOriginal">{{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}</span>
+          <span id="priceDiscounted" style="display:none;"></span>
+        {% endif %}
+      </div>
+      {% set sold_out = product.quantity is not none and product.quantity <= 0 %}
+      {% set sc = sold_counts.get(product.id, 0) %}
+      {% if sc > 0 %}
+      <p class="product-sold-count">{{ sc }} sold</p>
+      {% endif %}
+      {% if not sold_out %}
+      <div class="social-proof-strip" id="socialProofStrip"></div>
+      {% endif %}
+      <p>{{ product.short_description }}</p>
+      {% if product.quantity is not none and product.quantity > 0 and product.quantity <= 5 %}
+        <p class="stock-warning">Only {{ product.quantity }} left in stock</p>
+      {% elif sold_out %}
+        <p class="stock-warning stock-warning--sold">Sold Out</p>
+      {% endif %}
+      {% if sold_out and customer_logged_in %}
+      <div class="stock-request-box">
+        <p><strong>Notify me when back in stock</strong></p>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn--outline btn--sm" onclick="requestStockNotify({{ product.id }})" id="stockNotifyBtn" data-email="{{ current_customer_email }}"><span class="bell-ring">🔔</span> Notify Me</button>
+        </div>
+        <p id="stockNotifyMsg" class="stock-request-box__msg"></p>
+      </div>
+      {% elif sold_out %}
+      <div class="stock-request-box">
+        <p><strong>Notify me when back in stock</strong></p>
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+          <input type="email" id="stockNotifyEmail" placeholder="Your email">
+          <input type="text" id="stockNotifyName" placeholder="Your name (optional)">
+          <button class="btn btn--outline btn--sm" onclick="requestStockNotify({{ product.id }})"><span class="bell-ring">🔔</span> Notify Me</button>
+        </div>
+        <p id="stockNotifyMsgGuest" class="stock-request-box__msg"></p>
+      </div>
+      {% endif %}
+  
+  
+      <div class="divider"></div>
+      <div class="product-description">{{ product.description }}</div>
+
+      <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="display:flex; gap:0.75rem; align-items:center; margin-bottom:1.25rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <div class="qty-selector">
+          <button type="button" onclick="this.nextElementSibling.stepDown(); this.nextElementSibling.dispatchEvent(new Event('change'));" aria-label="Decrease quantity" {% if sold_out %}disabled{% endif %}>−</button>
+          <input type="number" name="quantity" value="1" min="1" max="99" aria-label="Quantity" {% if sold_out %}disabled{% endif %}>
+          <button type="button" onclick="this.previousElementSibling.stepUp(); this.previousElementSibling.dispatchEvent(new Event('change'));" aria-label="Increase quantity" {% if sold_out %}disabled{% endif %}>+</button>
+        </div>
+        <button type="submit" class="btn btn--outline" style="flex:1;" {% if sold_out %}disabled{% endif %}>{% if sold_out %}Sold Out{% else %}Add to Cart{% endif %}</button>
+      </form>
+
+      <div id="buyForm">
+        {% if not customer_logged_in %}
+        <p class="auth-inline-hint">
+          <a href="#" onclick="openAuthModal(); return false;">Sign in with your phone</a> for instant checkout, or continue as a guest below.
+        </p>
+        {% endif %}
+        <div class="field">
+          <label>Full Name</label>
+          <input type="text" id="buyerName" placeholder="Your name" value="{{ current_customer_name }}">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="buyerEmail" placeholder="you@example.com" value="{{ current_customer_email }}">
+          <small>Your product & order status will be tied to this email.</small>
+        </div>
+        <div class="field">
+          <label>Phone (optional)</label>
+          <input type="tel" id="buyerPhone" placeholder="For faster support" value="{{ current_customer_phone }}">
+        </div>
+        <div class="field">
+          <label>Coupon Code (optional)</label>
+          <div style="display:flex; gap:0.6rem;">
+            <input type="text" id="couponCode" placeholder="e.g. WELCOME10" style="text-transform:uppercase;">
+            <button type="button" class="btn btn--outline btn--sm" style="flex-shrink:0;" onclick="applyCoupon({{ product.id }})">Apply</button>
+          </div>
+          <p id="couponMessage" style="margin-top:0.5rem; font-size:0.82rem; display:none;"></p>
+        </div>
+        <div class="auto-coupon-banner" id="autoCouponBox" style="display:none; margin-bottom:1rem;"></div>
+        <button class="btn btn--full" id="buyBtn" data-base-price="{{ product.price }}" data-currency="{{ settings.currency_symbol }}"
+                {% if checkout_available and not sold_out %}onclick="startCheckout({{ product.id }}, '{{ product.name|e }}')"{% else %}disabled{% endif %}>
+          {% if sold_out %}Sold Out{% elif checkout_available %}{% if not test_checkout_mode %}Buy Now — {{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}{% else %}Place Test Order — {{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}{% endif %}{% else %}Checkout temporarily disabled{% endif %}
+          </button>
+          <p id="buyError" style="color:#7a2222; margin-top:0.75rem; display:none;"></p>
+          <p style="margin-top:1rem; font-size:0.8rem; color:var(--grey-500);">
+            {% if checkout_available %}{% if not test_checkout_mode %}Secure payment via Razorpay. After payment, your order is reviewed and delivered by our team —
+            you'll be able to track its status any time.{% else %}Testing mode is active. You can still place an order, notifications will fire, and Razorpay will be skipped.{% endif %}{% else %}Checkout is temporarily disabled by the site owner. You can still browse products and add items to your cart.{% endif %}
+        </p>
+      </div>
+
+      {# share button removed — now overlays the product image #}
+
+      <div class="reviews-section" id="reviews">
+        <h3>Customer Reviews</h3>
+        <div id="reviewsList"><p style="opacity:0.5;font-size:0.85rem;">Loading reviews…</p></div>
+        {% if customer_logged_in %}
+        <div class="review-form">
+          <h4>Write a Review</h4>
+          <form id="reviewForm" onsubmit="return submitReview({{ product.id }})">
+            <div class="star-rating">
+              <input type="radio" name="rating" value="5" id="star5"><label for="star5">★</label>
+              <input type="radio" name="rating" value="4" id="star4"><label for="star4">★</label>
+              <input type="radio" name="rating" value="3" id="star3"><label for="star3">★</label>
+              <input type="radio" name="rating" value="2" id="star2"><label for="star2">★</label>
+              <input type="radio" name="rating" value="1" id="star1"><label for="star1">★</label>
+            </div>
+            <div class="field">
+              <input type="text" name="title" placeholder="Review title (optional)" maxlength="100">
+            </div>
+            <div class="field">
+              <textarea name="body" placeholder="Share your experience with this product…" maxlength="2000" required></textarea>
+            </div>
+            <button type="submit" class="btn btn--outline btn--sm">Submit Review</button>
+            <p id="reviewMsg" style="margin-top:0.5rem;font-size:0.82rem;display:none;"></p>
+          </form>
+        </div>
+        {% else %}
+        <p style="margin-top:1rem;font-size:0.82rem;opacity:0.6;"><a href="#" onclick="openAuthModal();return false;" style="text-decoration:underline;">Sign in</a> to leave a review.</p>
+        {% endif %}
+      </div>
+
+      <script nonce="{{ csp_nonce }}">
+      (function() {
+        var pid = {{ product.id }};
+        var list = document.getElementById('reviewsList');
+        fetch('/api/product/' + pid + '/reviews')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (!data.reviews || !data.reviews.length) {
+              list.innerHTML = '<div class="empty-state" style="margin:1.5rem 0;"><h3 style="font-size:1rem;">No reviews yet</h3><p style="font-size:0.85rem;">This product hasn\u2019t been reviewed yet. If you\u2019ve bought it, your honest feedback helps other customers decide.</p>' + (window.loggedIn ? '<button onclick="document.getElementById(\'reviewForm\').scrollIntoView({behavior:\'smooth\'})" class="btn btn--sm btn--outline" style="margin-top:0.75rem;">Write a Review</button>' : '<p style="font-size:0.85rem;color:var(--grey-500);"><a href="#" onclick="openAuthModal();return false;" style="color:var(--accent);">Sign in</a> to leave a review.</p>') + '</div>';
+              return;
+            }
+            list.innerHTML = data.reviews.map(function(r) {
+              var stars = '';
+              for (var i = 1; i <= 5; i++) {
+                stars += '<svg viewBox="0 0 20 20" class="' + (i <= r.rating ? 'star-filled' : 'star-empty') + '"><polygon points="10,1 13.09,7.06 20,7.82 14.45,12.88 16.18,20 10,16.56 3.82,20 5.55,12.88 0,7.82 6.91,7.06"/></svg>';
+              }
+              var verifiedBadge = r.verified ? '<span class="review-card__verified"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>Verified Purchase</span>' : '';
+              var titleHtml = r.title ? '<div class="review-card__title">' + escHtml(r.title) + '</div>' : '';
+              return '<div class="review-card">' +
+                '<div class="review-card__header">' +
+                  '<div class="review-card__avatar">' + escHtml((r.customer_name || 'A')[0].toUpperCase()) + '</div>' +
+                  '<div class="review-card__name">' + escHtml(r.customer_name || 'Anonymous') + '</div>' +
+                  verifiedBadge +
+                  '<div class="review-card__stars">' + stars + '</div>' +
+                '</div>' +
+                titleHtml +
+                '<div class="review-card__body">' + escHtml(r.body) + '</div>' +
+              '</div>';
+            }).join('');
+          });
+      })();
+
+      window.submitReview = function(productId) {
+        var form = document.getElementById('reviewForm');
+        var data = {
+          rating: parseInt((form.querySelector('input[name=rating]:checked') || {}).value || 5),
+          title: form.querySelector('input[name=title]').value.trim(),
+          body: form.querySelector('textarea[name=body]').value.trim(),
+        };
+        if (!data.body) { showReviewMsg('Please write your review.', 'error'); return false; }
+        fetch('/api/product/' + productId + '/reviews/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+          body: JSON.stringify(data),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+          if (resp.error) { showReviewMsg(resp.error, 'error'); return; }
+          showReviewMsg('Review submitted' + (resp.verified ? ' ✓ (verified purchase)' : ' (pending verification)') + '!', 'success');
+          form.reset();
+          // Reload reviews
+          setTimeout(function() { location.reload(); }, 1500);
+        })
+        .catch(function() { showReviewMsg('Something went wrong. Please try again.', 'error'); });
+        return false;
+      };
+
+      function showReviewMsg(msg, type) {
+        var el = document.getElementById('reviewMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        el.style.color = type === 'error' ? '#cc5555' : '#4caf50';
+        setTimeout(function() { el.style.display = 'none'; }, 4000);
+      }
+      </script>
+
+      <div class="trust-strip">
+        <div class="trust-strip__item">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          {% if checkout_available %}{% if not test_checkout_mode %}Secure Razorpay checkout{% else %}Testing mode: orders will still be created, notifications will fire, and Razorpay will be skipped.{% endif %}{% else %}Checkout temporarily disabled{% endif %}
+        </div>
+        <div class="trust-strip__item">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6L9 17l-5-5"></path></svg>
+          Personally reviewed before delivery
+        </div>
+        <div class="trust-strip__item">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg>
+          Track your order any time
+        </div>
+        {% if delivery_speed %}
+        <div class="trust-strip__item" style="border-left:1px solid var(--border); padding-left:1rem;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2Z"></path><path d="M12 6v6l4 2"></path></svg>
+          Usually delivered within {{ delivery_speed.hours|round(0)|int }}h ({{ delivery_speed.count }} past orders)
+        </div>
+        {% endif %}
+      </div> <!-- /.product-info -->
+    </div> <!-- /#productDetail -->
+    </div> <!-- /#productDetailSkeleton -->
+
+    {% if related %}
+  <div class="container related-products reveal">
+    <h3>You May Also Like</h3>
+    <div class="grid">
+      {% for r in related %}
+      <div class="card">
+        <a class="card__link" href="{{ url_for('product_detail', slug=r.slug) }}">
+          <div class="card__image">
+            {% if r.ribbon %}<span class="card__ribbon card__ribbon--{{ r.ribbon|lower }}">{{ r.ribbon }}</span>{% endif %}
+            {% if related_images[r.id] %}
+              <img src="{{ url_for('uploaded_file', filename=related_images[r.id]) }}" alt="{{ r.name }}" loading="lazy" width="400" height="500">
+            {% else %}
+              <div class="card__placeholder">{{ r.name[0]|upper }}</div>
+            {% endif %}
+          </div>
+          {% if r.category %}<div class="card__category">{{ r.category }}</div>{% endif %}
+          <div class="card__title">{{ r.name }}</div>
+          <div class="card__price">
+            {% if r.compare_price and r.compare_price > r.price %}
+              <span class="card__price-old">{{ settings.currency_symbol }}{{ "{:,}".format(r.compare_price) }}</span>
+              <span class="card__price-new">{{ settings.currency_symbol }}{{ "{:,}".format(r.price) }}</span>
+              <span class="card__price-save">Save {{ settings.currency_symbol }}{{ "{:,}".format(r.compare_price - r.price) }}</span>
+            {% else %}
+              {{ settings.currency_symbol }}{{ "{:,}".format(r.price) }}
+            {% endif %}
+          </div>
+        </a>
+        <button class="card__quick-view" data-product-id="{{ r.id }}" type="button" aria-label="Quick view">Quick View</button>
+        <form class="add-to-cart-form card__add-form" action="{{ url_for('cart_add') }}" method="POST">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="product_id" value="{{ r.id }}">
+          <input type="hidden" name="quantity" value="1">
+          <button type="submit" class="card__add-btn">+ Add to Cart</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<div class="mobile-buy-bar" id="mobileBuyBar">
+  <div class="mobile-buy-bar__inner">
+    <span class="mobile-buy-bar__price">
+      {% if product.compare_price and product.compare_price > product.price %}
+        <span style="text-decoration:line-through; opacity:0.5; font-size:0.85em;">{{ settings.currency_symbol }}{{ "{:,}".format(product.compare_price) }}</span>
+        <span>{{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}</span>
+      {% else %}
+        {{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}
+      {% endif %}
+    </span>
+    {% if not sold_out and checkout_available %}
+    <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="flex:1;display:flex;gap:0.5rem;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="product_id" value="{{ product.id }}">
+      <input type="hidden" name="quantity" value="1">
+      <button type="submit" class="btn btn--outline" style="flex:1;padding:0.75rem 0.5rem;font-size:0.75rem;">Add to Cart</button>
+    </form>
+    <button class="btn" id="mobileBuyBtn" {% if sold_out %}disabled{% else %}onclick="document.getElementById('buyerName').scrollIntoView({behavior:'smooth', block:'center'}); document.getElementById('buyerName').focus();"{% endif %} style="flex:1;padding:0.75rem 0.5rem;font-size:0.75rem;">{% if sold_out %}Sold Out{% elif checkout_available %}{% if not test_checkout_mode %}Buy Now{% else %}Place Test Order{% endif %}{% else %}Checkout disabled{% endif %}</button>
+    {% elif sold_out %}
+    <button class="btn" disabled style="flex:1;">Sold Out</button>
+    {% else %}
+    <button class="btn" disabled style="flex:1;">Checkout disabled</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if checkout_available %}{% if payment_gateway_ready %}
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>{% endif %}
+<script nonce="{{ csp_nonce }}">const RAZORPAY_KEY = "{{ razorpay_key }}";</script>
+<script src="{{ url_for('static', filename='js/checkout.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auto_coupons.js') }}"></script>
+{% endif %}
+<script nonce="{{ csp_nonce }}">
+// Track recently viewed products in localStorage
+(function() {
+  var product = {
+    id: {{ product.id }},
+    name: {{ product.name|tojson }},
+    slug: {{ product.slug|tojson }},
+    price: {{ product.price }},
+    currency: {{ settings.currency_symbol|tojson }},
+    image: {{ (images and images[0])|tojson if images else 'null' }},
+    category: {{ (product.category or '')|tojson }}
+  };
+  try {
+    var viewed = JSON.parse(localStorage.getItem("recentlyViewed") || "[]");
+    viewed = viewed.filter(function(p) { return p.id !== product.id; });
+    viewed.unshift(product);
+    viewed = viewed.slice(0, 8);
+    localStorage.setItem("recentlyViewed", JSON.stringify(viewed));
+  } catch(e) {}
+})();
+</script>
+<script nonce="{{ csp_nonce }}">
+// Fire-and-forget product view tracking after the page is visible.
+(function() {
+  var pid = {{ product.id }};
+  function pingView() {
+    try {
+      var url = '/api/product/' + pid + '/view';
+      if (navigator.sendBeacon) {
+        var payload = new Blob([''], { type: 'text/plain;charset=UTF-8' });
+        navigator.sendBeacon(url, payload);
+      } else {
+        fetch(url, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: '{}' })
+          .catch(function() {});
+      }
+    } catch (e) {}
+  }
+  if (document.readyState === 'complete') {
+    setTimeout(pingView, 750);
+  } else {
+    window.addEventListener('load', function() { setTimeout(pingView, 750); }, { once: true });
+  }
+})();
+</script>
+<script nonce="{{ csp_nonce }}">
+// Social proof strip — cycle recent buyer names
+(function() {
+var strip = document.getElementById('socialProofStrip');
+if (!strip) return;
+var pid = {{ product.id }};
+fetch('/api/recent-purchases/' + pid, { headers: { 'X-Requested-With': 'fetch' } })
+  .then(function(r) { return r.json(); })
+  .then(function(names) {
+    if (!names || names.length < 2) return;
+    names = names.filter(function(n) { return n && n.length > 0; });
+    if (names.length < 2) return;
+    var i = 0;
+    var msgs = names.slice(0, 10).map(function(n) { return n + ' bought this recently'; });
+    function show() {
+      strip.textContent = msgs[i % msgs.length];
+      strip.style.display = 'block';
+      i++;
+      setTimeout(function() {
+        strip.style.opacity = '0';
+        setTimeout(function() {
+          strip.style.opacity = '';
+          show();
+        }, 1200);
+      }, 4000);
+    }
+    show();
+  })
+  .catch(function() {});
+})();
+</script>
+
+<script nonce="{{ csp_nonce }}">
+window.loggedIn = {{ 'true' if customer_logged_in else 'false' }};
+</script>
+
+<script nonce="{{ csp_nonce }}">
+// Share product via Web Share API
+window.shareProductData = {
+  title: {{ product.name|tojson }},
+  price: '{{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}',
+  url: window.location.href
+};
+
+function shareProduct() {
+  var data = window.shareProductData;
+  function copyFallback() {
+    // Fallback: copy URL to clipboard
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(data.url).then(function() {
+        showShareCopied();
+      }).catch(function() {
+        legacyCopyFallback();
+      });
+    } else {
+      legacyCopyFallback();
+    }
+  }
+  function legacyCopyFallback() {
+    var input = document.createElement('input');
+    input.value = data.url;
+    document.body.appendChild(input);
+    input.select();
+    try {
+      document.execCommand('copy');
+      showShareCopied();
+    } catch (e) {}
+    document.body.removeChild(input);
+  }
+  function showShareCopied() {
+    var btn = document.querySelector('.product-share-overlay');
+    if (btn) {
+      var orig = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      btn.style.color = '#4caf50';
+      setTimeout(function() {
+        btn.innerHTML = orig;
+        btn.style.color = '';
+      }, 2000);
+    }
+  }
+  if (navigator.share) {
+    navigator.share({
+      title: data.title,
+      text: 'Check out ' + data.title + ' — ' + data.price + ' on {{ settings.site_name|e }}',
+      url: data.url,
+    }).catch(function(err) {
+      // AbortError = user cancelled, that's fine
+      if (err.name === 'AbortError') return;
+      // Other errors — fall back to clipboard copy
+      console.warn('Share API failed, using clipboard fallback:', err);
+      copyFallback();
+    });
+  } else {
+    copyFallback();
+  }
+}
+</script>
+
+<script nonce="{{ csp_nonce }}">
+function requestStockNotify(productId) {
+  var emailEl = document.getElementById('stockNotifyEmail');
+  var email = emailEl ? emailEl.value : (document.getElementById('stockNotifyBtn').getAttribute('data-email') || '');
+  var name = (document.getElementById('stockNotifyName') || {}).value || '';
+  var msgEl = document.getElementById('stockNotifyMsg') || document.getElementById('stockNotifyMsgGuest');
+  if (!email && !window.loggedIn) {
+    msgEl.textContent = 'Please enter your email.';
+    msgEl.style.display = 'block'; msgEl.style.color = '#cc5555'; return;
+  }
+  var fetchEmail = email || '';
+  msgEl.style.display = 'none';
+  document.getElementById('stockNotifyBtn').disabled = true;
+  document.getElementById('stockNotifyBtn').textContent = '⏳';
+  fetch('/api/product/' + productId + '/stock-request', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email: fetchEmail, name: name}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.success) {
+      msgEl.textContent = data.message;
+      msgEl.style.display = 'block'; msgEl.style.color = '#4caf50';
+      document.getElementById('stockNotifyBtn').textContent = '✓ Added';
+    } else {
+      msgEl.textContent = data.error;
+      msgEl.style.display = 'block'; msgEl.style.color = '#cc5555';
+      document.getElementById('stockNotifyBtn').disabled = false;
+      document.getElementById('stockNotifyBtn').textContent = '🔔 Notify Me';
+    }
+  }).catch(function() {
+    msgEl.textContent = 'Something went wrong. Please try again.';
+    msgEl.style.display = 'block'; msgEl.style.color = '#cc5555';
+    document.getElementById('stockNotifyBtn').disabled = false;
+    document.getElementById('stockNotifyBtn').textContent = '🔔 Notify Me';
+  });
+}
+
+function toggleWishlistHeart(btn) {
+  var pid = btn.dataset.productId;
+  fetch('/api/wishlist/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+    body: JSON.stringify({product_id: parseInt(pid)}),
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.success) {
+      btn.classList.add('is-wishlisted');
+      btn.classList.remove('heart-pulse');
+      void btn.offsetWidth; // force reflow
+      btn.classList.add('heart-pulse');
+    } else if (data.error === 'Already in your wishlist.') {
+      // Remove from wishlist
+      fetch('/api/wishlist/remove', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+        body: JSON.stringify({product_id: parseInt(pid)}),
+      }).then(function(r) { return r.json(); }).then(function() {
+        btn.classList.remove('is-wishlisted');
+        btn.classList.remove('heart-pulse');
+        void btn.offsetWidth;
+        btn.classList.add('heart-pulse');
+      });
+    }
+  });
+}
+</script>
+<script nonce="{{ csp_nonce }}">
+// Product detail skeleton: show during page transitions
+(function() {
+  var skel = document.getElementById('productDetailSkeleton');
+  var detail = document.getElementById('productDetail');
+  if (!skel || !detail) return;
+  if (document.referrer && document.referrer !== window.location.href) {
+    skel.style.display = '';
+    detail.style.display = 'none';
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        skel.style.display = 'none';
+        detail.style.display = '';
+      }, 500);
+    });
+  }
+})();
+</script>
+
+<script nonce="{{ csp_nonce }}">
+// Mobile buy bar — scroll-aware expand/detach behaviour
+(function() {
+var buyBar = document.getElementById('mobileBuyBar');
+if (!buyBar) return;
+
+// Only on mobile (<=720px)
+if (!window.matchMedia('(max-width: 720px)').matches) return;
+
+var productSection = document.querySelector('.product-detail');
+if (!productSection) return;
+
+var expanded = false;
+var detached = false;
+var productSectionBottom = 0;
+var ticking = false;
+
+function calcProductBottom() {
+  var rect = productSection.getBoundingClientRect();
+  productSectionBottom = rect.bottom;
+}
+
+function onScroll() {
+  if (!ticking) {
+    requestAnimationFrame(function() {
+      handleScroll();
+      ticking = false;
+    });
+    ticking = true;
+  }
+}
+
+function handleScroll() {
+  var scrollY = window.scrollY || window.pageYOffset;
+  var viewportH = window.innerHeight;
+  var scrollBottom = scrollY + viewportH;
+
+  // Recalc product section bottom in document coords
+  calcProductBottom();
+  var productSectionBottomDoc = productSectionBottom + scrollY;
+
+  if (scrollY > 150) {
+    // User has scrolled down at least 150px
+    if (!expanded) {
+      buyBar.classList.add('expanded');
+      buyBar.classList.remove('detached');
+      expanded = true;
+      detached = false;
+    }
+
+    // Check if we've scrolled past the product section
+    var docBottom = scrollY + viewportH;
+    if (docBottom > productSectionBottomDoc + 50 && !detached) {
+      // Past product section — detach the buy bar
+      buyBar.classList.remove('expanded');
+      buyBar.classList.add('detached');
+      detached = true;
+      expanded = false;
+    } else if (docBottom <= productSectionBottomDoc + 50 && detached) {
+      // Back within product section — rejoin expanded bottom nav
+      buyBar.classList.remove('detached');
+      buyBar.classList.add('expanded');
+      detached = false;
+      expanded = true;
+    }
+  } else {
+    // At top — collapse buy bar, bottom nav returns to normal
+    buyBar.classList.remove('expanded', 'detached');
+    expanded = false;
+    detached = false;
+  }
+}
+
+// Initial setup
+calcProductBottom();
+
+window.addEventListener('scroll', onScroll, { passive: true });
+window.addEventListener('resize', function() {
+  calcProductBottom();
+  handleScroll();
+}, { passive: true });
+
+// Run once on load
+setTimeout(handleScroll, 300);
+})();
+</script>
+
+<script nonce="{{ csp_nonce }}">
+// PNG thumbnail 3D effect: add has-png-thumb class if png layer exists
+(function() {
+var pngLayer = document.getElementById('pngLayer');
+var galleryMain = document.getElementById('productGalleryMain');
+if (pngLayer && galleryMain) {
+  galleryMain.classList.add('has-png-thumb');
+}
+})();
+</script>
+
+<script nonce="{{ csp_nonce }}">
+// Check initial wishlist state on page load
+(function() {
+  var heart = document.getElementById('wishlistHeart');
+  if (!heart) return;
+  var pid = parseInt(heart.dataset.productId);
+  fetch('/api/wishlist/list')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.items && data.items.some(function(item) { return item.product_id === pid; })) {
+        heart.classList.add('is-wishlisted');
+      }
+    })
+    .catch(function() {});
+})();
+</script>
+
+{% endblock %}

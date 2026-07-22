@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}My Wishlist — {{ settings.site_name }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Wishlist</span>
+      <h2>Saved for Later</h2>
+    </div>
+
+    {% if items %}
+    <div class="grid">
+      {% for w in items %}
+      {% set p_sold_out = w.quantity is not none and w.quantity <= 0 %}
+      <div class="card reveal card--wishlist" data-wishlist-id="{{ w.product_id }}">
+        <a class="card__link" href="{{ url_for('product_detail', slug=w.slug) }}">
+          <div class="card__image">
+            {% if p_sold_out %}<span class="card__sold-out">Sold Out</span>{% endif %}
+            {% if product_images[w.product_id] %}
+              <img src="{{ url_for('uploaded_file', filename=product_images[w.product_id]) }}" alt="{{ w.name }}" loading="lazy" width="400" height="500">
+            {% else %}
+              <div class="card__placeholder">{{ w.name[0]|upper }}</div>
+            {% endif %}
+          </div>
+          <div class="card__title">{{ w.name }}</div>
+          <div class="card__price">
+            {% if w.compare_price and w.compare_price > w.price %}
+              <span class="card__price-old">{{ settings.currency_symbol }}{{ "{:,}".format(w.compare_price) }}</span>
+              <span class="card__price-new">{{ settings.currency_symbol }}{{ "{:,}".format(w.price) }}</span>
+            {% else %}
+              {{ settings.currency_symbol }}{{ "{:,}".format(w.price) }}
+            {% endif %}
+          </div>
+        </a>
+        <button class="card__quick-view wishlist-remove-btn" data-product-id="{{ w.product_id }}" type="button" aria-label="Remove from wishlist">✕ Remove</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="text-align:center;padding:3rem 0;">
+      <div class="empty-state__icon">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+      </div>
+      <h3>Your wishlist is empty</h3>
+      <p>Save products you love here — they'll be waiting when you're ready.</p>
+      <a href="{{ url_for('home') }}#products" class="btn btn--outline" style="margin-top:1rem;">Browse Products</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+<script nonce="{{ csp_nonce }}">
+document.querySelectorAll('.wishlist-remove-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var pid = this.dataset.productId;
+    var card = this.closest('.card--wishlist');
+    fetch('/api/wishlist/remove', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken()},
+      body: JSON.stringify({product_id: parseInt(pid)}),
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.success && card) {
+        card.style.opacity = '0';
+        setTimeout(function() { card.remove(); if (!document.querySelector('.card--wishlist')) location.reload(); }, 300);
+      }
+    });
+  });
+});
+</script>
+{% endblock %}
