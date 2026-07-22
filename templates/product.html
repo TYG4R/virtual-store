@@ -631,68 +631,59 @@ function toggleWishlistHeart(btn) {
 <script nonce="{{ csp_nonce }}">
 // Liquid glass buy bar — pure CSS transitions, no rAF clip-path
 document.addEventListener('DOMContentLoaded',function(){
-var buyAnchor=document.getElementById('buyAnchor');
-var buyRow=document.getElementById('buyButtonsRow');
+var el=document.getElementById('buyAnchor');
+var row=document.getElementById('buyButtonsRow');
 var nav=document.getElementById('bottomNav');
 var tray=document.getElementById('bottomNavBuyTray');
-var section=document.getElementById('productDetail');
-if(!buyRow||!nav||!tray||!section)return;
+var sec=document.getElementById('productDetail');
+if(!row||!nav||!tray||!sec)return;
 
-// Tray clone buttons
-var f=buyRow.querySelector('.add-to-cart-form');
+// Tray clone
+var f=row.querySelector('.add-to-cart-form');
 if(f){
- var tf=f.cloneNode(true);
- tf.style.cssText='flex:1;min-width:0;';
- var tb=tf.querySelector('button');
- if(tb)tb.style.cssText='width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;';
- tray.appendChild(tf);
+ var t=f.cloneNode(true);
+ t.style.cssText='flex:1;min-width:0;';
+ var b=t.querySelector('button');
+ if(b)b.style.cssText='width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;';
+ tray.appendChild(t);
 }
 var bb=document.getElementById('buyBtn');
 if(bb&&!bb.disabled){
- var tb2=bb.cloneNode(true);
- tb2.id='trayBuyBtn';
- tb2.style.cssText='flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
- tb2.onclick=function(){startCheckout({{product.id}},'{{product.name|e}}');};
- tray.appendChild(tb2);
+ var t=bb.cloneNode(true);
+ t.id='trayBuyBtn';
+ t.style.cssText='flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
+ t.onclick=function(){startCheckout({{product.id}},'{{product.name|e}}');};
+ tray.appendChild(t);
 }
 
-var rm=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-var exp=false;
+var up=false;
 
-// Toggle state based on scroll position
-function setExpanded(v){
- if(v===exp)return;
- exp=v;
- if(v){
-  nav.classList.add('bottom-nav--expanded');
-  buyAnchor.className='buy-anchor--dissolving';
- }else{
-  nav.classList.remove('bottom-nav--expanded');
-  buyAnchor.className='buy-anchor--solid';
- }
-}
-
-// Check thresholds on scroll
 function tick(){
- var ab=buyAnchor.getBoundingClientRect().bottom;
+ var ab=el.getBoundingClientRect().bottom;
  var nb=nav.getBoundingClientRect().top;
- var sb=section.getBoundingClientRect().bottom;
+ var sb=sec.getBoundingClientRect().bottom;
  
- if(exp){
-  // Collapse: section fully above nav (scrolled past it)
-  // or buy anchor visible below nav (scrolled back to top)
-  if(sb<nb||ab>nb+80)setExpanded(false);
+ if(up){
+  if(sb<nb||ab>nb+80){
+   up=false;
+   nav.classList.remove('bottom-nav--expanded');
+   el.className='buy-anchor--solid';
+  }
  }else{
-  // Expand: buy anchor above nav top AND section still visible
-  if(ab<nb+50&&sb>nb-30)setExpanded(true);
+  if(ab<nb+50&&sb>nb-30){
+   up=true;
+   nav.classList.add('bottom-nav--expanded');
+   el.className='buy-anchor--dissolving';
+  }
  }
 }
 
 var stk=null;
 window.addEventListener('scroll',function(){if(stk)cancelAnimationFrame(stk);stk=requestAnimationFrame(tick);},{passive:true});
-window.addEventListener('resize',function(){if(stk)cancelAnimationFrame(stk);stk=requestAnimationFrame(tick);},{passive:true});
 
-buyAnchor.className='buy-anchor--solid';
+el.className='buy-anchor--solid';
+// Also run tick on load to catch initial state
+setTimeout(tick,100);
 });
 });
 </script>
