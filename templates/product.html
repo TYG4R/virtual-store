@@ -4,6 +4,7 @@
 {% block og_title %}{{ product.name }} — {{ settings.site_name }}{% endblock %}
 {% block og_image %}{% if images %}<meta property="og:image" content="{{ url_for('uploaded_file', filename=images[0], _external=True) }}">{% endif %}{% endblock %}
 {% block head %}
+<meta name="git-sha" content="9c98a2f">
 <meta name="description" content="{{ product.short_description or product.name }}">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
