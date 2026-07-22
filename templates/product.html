@@ -627,228 +627,133 @@ function toggleWishlistHeart(btn) {
 </script>
 
 <script nonce="{{ csp_nonce }}">
-// Morphing liquid glass buy bar — buttons dissolve into the nav like a droplet
-(function() {
-var buyAnchor = document.getElementById('buyAnchor');
-var buyButtonsRow = document.getElementById('buyButtonsRow');
-if (!buyAnchor || !buyButtonsRow) return;
-// Only on mobile (<=720px)
-if (!window.matchMedia('(max-width: 720px)').matches) return;
+// Morphing liquid glass — mobile buy bar merge/split
+(function(){
+var buyRow=document.getElementById('buyButtonsRow');
+var buyAnchor=document.getElementById('buyAnchor');
+var nav=document.getElementById('bottomNav');
+var tray=document.getElementById('bottomNavBuyTray');
+var backTop=document.getElementById('backToTop');
+if(!buyRow||!nav||!tray)return;
 
-var nav = document.getElementById('bottomNav');
-var tray = document.getElementById('bottomNavBuyTray');
-var backToTop = document.getElementById('backToTop');
-if (!nav || !tray) return;
-
-var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// ── Pre-populate the tray with cloned buttons ──
-// Use the add-to-cart form from buyButtonsRow
-var atcForm = buyButtonsRow.querySelector('.add-to-cart-form');
-if (atcForm) {
-  var trayAdd = atcForm.cloneNode(true);
-  trayAdd.className = 'add-to-cart-form';
-  trayAdd.style.cssText = 'flex:1;min-width:0;';
-  var qtyInput = trayAdd.querySelector('input[name="quantity"]');
-  if (qtyInput) qtyInput.value = '1';
-  var trayBtn = trayAdd.querySelector('button');
-  if (trayBtn) { trayBtn.style.cssText = 'width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;'; }
-  tray.appendChild(trayAdd);
+// Tray buttons
+var f=buyRow.querySelector('.add-to-cart-form');
+if(f){
+ var tf=f.cloneNode(true);
+ tf.style.cssText='flex:1;min-width:0;';
+ var tb=tf.querySelector('button');
+ if(tb)tb.style.cssText='width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;';
+ tray.appendChild(tf);
+}
+var bb=document.getElementById('buyBtn');
+if(bb&&!bb.disabled){
+ var tb2=bb.cloneNode(true);
+ tb2.id='trayBuyBtn';
+ tb2.style.cssText='flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
+ tb2.onclick=function(){startCheckout({{product.id}},'{{product.name|e}}');};
+ tray.appendChild(tb2);
 }
 
-// Clone the buy button into tray
-var buyBtn = document.getElementById('buyBtn');
-if (buyBtn && !buyBtn.disabled) {
-  var trayBuy = buyBtn.cloneNode(true);
-  trayBuy.id = 'trayBuyBtn';
-  trayBuy.style.cssText = 'flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
-  trayBuy.onclick = function(e) {
-    startCheckout({{ product.id }}, '{{ product.name|e }}');
-  };
-  tray.appendChild(trayBuy);
-} else {
-  var trayBuy = document.createElement('button');
-  trayBuy.className = 'btn';
-  trayBuy.style.cssText = 'flex:1;padding:0.6rem 0.5rem;font-size:0.78rem;';
-  trayBuy.disabled = true;
-  trayBuy.textContent = 'Sold Out';
-  tray.appendChild(trayBuy);
+// SVG clipPath
+(function(){
+ var old=document.getElementById('navMorphClipDefs');
+ if(old)old.remove();
+ var ns='http://www.w3.org/2000/svg';
+ var svg=document.createElementNS(ns,'svg');
+ svg.id='navMorphClipDefs';
+ svg.style.cssText='position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
+ var defs=document.createElementNS(ns,'defs');
+ var cp=document.createElementNS(ns,'clipPath');
+ cp.id='navMorphClip';cp.setAttribute('clipPathUnits','userSpaceOnUse');
+ var pth=document.createElementNS(ns,'path');pth.id='navMorphPath';
+ cp.appendChild(pth);defs.appendChild(cp);svg.appendChild(defs);
+ document.body.appendChild(svg);
+ var s=document.createElement('style');
+ s.id='navMorphStyle';
+ s.textContent='.bottom-nav--expanded{clip-path:url(#navMorphClip)}';
+ document.head.appendChild(s);
+ window.__morphPath=pth;
+})();
+
+function up(bd){
+ var vw=window.innerWidth;
+ var th=nav.getBoundingClientRect().height+56;
+ var d='M0,4 Q'+(vw/2)+','+(4-bd)+' '+vw+',4 L'+vw+','+th+' L0,'+th+' Z';
+ window.__morphPath.setAttribute('d',d);
 }
 
-// ── SVG clipPath for the liquid curve ──
-function createSVG() {
-  var existing = document.getElementById('navMorphClipDefs');
-  if (existing) existing.remove();
+var rm=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+var exp=false,raf=null;
 
-  var ns = 'http://www.w3.org/2000/svg';
-  var svg = document.createElementNS(ns, 'svg');
-  svg.id = 'navMorphClipDefs';
-  svg.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
+function anim(fr,to,du,cb){
+ if(rm){up(to);if(cb)cb();return;}
+ var st=null;
+ function fk(ts){
+if(!st)st=ts;
+var t=Math.min((ts-st)/du,1);
+var e=t<0.5?2*t*t:-1+(4-2*t)*t;
+up(fr+(to-fr)*e);
+if(t<1)raf=requestAnimationFrame(fk);
+else{up(to);if(cb)cb();}
+ }
+ raf=requestAnimationFrame(fk);
+}
+function ca(){if(raf){cancelAnimationFrame(raf);raf=null;}}
 
-  var defs = document.createElementNS(ns, 'defs');
-  var clipPath = document.createElementNS(ns, 'clipPath');
-  clipPath.id = 'navMorphClip';
-  clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
-  var path = document.createElementNS(ns, 'path');
-  path.id = 'navMorphPath';
-  clipPath.appendChild(path);
-  defs.appendChild(clipPath);
-  svg.appendChild(defs);
-  document.body.appendChild(svg);
-
-  // Fix 3: clip the nav itself, not ::before
-  var styleEl = document.createElement('style');
-  styleEl.id = 'navMorphStyle';
-  styleEl.textContent = '.bottom-nav--expanded { clip-path: url(#navMorphClip); }';
-  document.head.appendChild(styleEl);
-
-  return path;
+function expand(){
+ if(exp)return;exp=true;
+ nav.classList.add('bottom-nav--expanded');
+ if(!rm)buyAnchor.className='buy-anchor--dissolving';
+ anim(4,18,380,function(){anim(18,28,100,function(){anim(28,18,120,function(){})});});
+}
+function collapse(){
+ if(!exp)return;exp=false;
+ nav.classList.remove('bottom-nav--expanded');
+ if(!rm)buyAnchor.className='buy-anchor--resolidifying';
+ anim(18,-10,180,function(){setTimeout(function(){anim(-10,4,200,function(){if(!rm)buyAnchor.className='buy-anchor--solid';up(4);});},80);});
 }
 
-var morphPath = createSVG();
-
-function updateClipPath(bowDepth) {
-  var vw = window.innerWidth;
-  var totalH = nav.getBoundingClientRect().height + 56;
-  var curveH = 4;
-  var cx = vw / 2;
-  var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
-  morphPath.setAttribute('d', d);
+var icd=false;
+function cs(){
+ if(!icd)return;
+ var r=buyRow.getBoundingClientRect();
+ var n=nav.getBoundingClientRect();
+ if(r.bottom<n.top+10)expand();else collapse();
 }
 
-// ── State machine ──
-var isExpanded = false;
-var rAF = null;
-
-function easeOutQuad(t) { return t * (2 - t); }
-function easeInQuad(t) { return t * t; }
-function lerp(a, b, t) { return a + (b - a) * t; }
-
-function animateMorph(fromBow, toBow, duration, onComplete) {
-  if (reducedMotion) {
-    updateClipPath(toBow);
-    if (onComplete) onComplete();
-    return;
-  }
-  var start = null;
-  function frame(ts) {
-    if (!start) start = ts;
-    var elapsed = ts - start;
-    var t = Math.min(elapsed / duration, 1);
-    var eased = t < 0.5 ? easeOutQuad(t * 2) / 2 : 0.5 + easeInQuad((t - 0.5) * 2) / 2;
-    var current = lerp(fromBow, toBow, eased);
-    updateClipPath(current);
-    if (t < 1) {
-      rAF = requestAnimationFrame(frame);
-    } else {
-      updateClipPath(toBow);
-      if (onComplete) onComplete();
-    }
-  }
-  rAF = requestAnimationFrame(frame);
-}
-
-function cancelAnim() {
-  if (rAF) { cancelAnimationFrame(rAF); rAF = null; }
-}
-
-function expand() {
-  if (isExpanded) return;
-  isExpanded = true;
-  nav.classList.add('bottom-nav--expanded');
-  if (!reducedMotion) {
-    buyAnchor.className = 'buy-anchor--dissolving';
-  }
-  animateMorph(4, 18, 380, function() {
-    animateMorph(18, 28, 100, function() {
-      animateMorph(28, 18, 120, function() {});
-    });
-  });
-}
-
-function collapse() {
-  if (!isExpanded) return;
-  isExpanded = false;
-  nav.classList.remove('bottom-nav--expanded');
-  if (!reducedMotion) {
-    buyAnchor.className = 'buy-anchor--resolidifying';
-  }
-  animateMorph(18, -10, 180, function() {
-    setTimeout(function() {
-      animateMorph(-10, 4, 200, function() {
-        if (!reducedMotion) {
-          buyAnchor.className = 'buy-anchor--solid';
-        }
-        updateClipPath(4);
-      });
-    }, 80);
-  });
-}
-
-// ── Scroll-check function — uses buyButtonsRow (shallow), not buyAnchor (deep) ──
-function checkScroll() {
-  if (!initialCheckDone) return;
-  var rect = buyButtonsRow.getBoundingClientRect();
-  var navRect = nav.getBoundingClientRect();
-  if (rect.bottom < navRect.top + 10) {
-    expand();
-  } else {
-    collapse();
-  }
-}
-
-// Fix 2: IntersectionObserver with direction guard
-var lastScrollY = window.scrollY;
-try {
-  var observer = new IntersectionObserver(function(entries) {
-    entries.forEach(function(entry) {
-      if (entry.target !== buyButtonsRow) return;
-      var scrollingDown = window.scrollY > lastScrollY;
-      lastScrollY = window.scrollY;
-      if (!entry.isIntersecting && scrollingDown) {
-        expand();
-      } else if (entry.isIntersecting && !scrollingDown) {
-        collapse();
-      }
-    });
-  }, { threshold: [0], rootMargin: '0px 0px -' + (nav.offsetHeight + 10) + 'px 0px' });
-  observer.observe(buyButtonsRow);
-} catch(e) {}
-
-// ── Scroll event fallback ──
-var scrollTick = null;
-window.addEventListener('scroll', function() {
-  if (scrollTick) cancelAnimationFrame(scrollTick);
-  scrollTick = requestAnimationFrame(checkScroll);
-}, { passive: true });
-
-window.addEventListener('resize', function() {
-  if (scrollTick) cancelAnimationFrame(scrollTick);
-  scrollTick = requestAnimationFrame(checkScroll);
-}, { passive: true });
-
-// ── Back-to-top → scroll to buyButtonsRow ──
-if (backToTop) {
-  backToTop.onclick = function(e) {
-    e.preventDefault();
-    buyButtonsRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  };
-}
-
-// ── Initial state ──
-updateClipPath(4);
-buyAnchor.className = 'buy-anchor--solid';
-var initialCheckDone = false;
-setTimeout(function() {
-  initialCheckDone = true;
-  checkScroll();
-}, 300);
-
-// ── Cleanup ──
-window.addEventListener('beforeunload', function() {
-  cancelAnim();
-  try { if (observer) observer.disconnect(); } catch(e) {}
+var lsy=window.scrollY;
+try{
+ var ob=new IntersectionObserver(function(es){
+es.forEach(function(e){
+ if(e.target!==buyRow)return;
+ var sd=window.scrollY>lsy;lsy=window.scrollY;
+ if(!e.isIntersecting&&sd)expand();
+ else if(e.isIntersecting&&!sd)collapse();
 });
+ },{threshold:[0],rootMargin:'0px 0px -'+(nav.offsetHeight+10)+'px 0px'});
+ ob.observe(buyRow);
+ window.__morphOb=ob;
+}catch(e){}
+
+var stk=null;
+window.addEventListener('scroll',function(){
+ if(stk)cancelAnimationFrame(stk);
+ stk=requestAnimationFrame(cs);
+},{passive:true});
+window.addEventListener('resize',function(){
+ if(stk)cancelAnimationFrame(stk);
+ stk=requestAnimationFrame(cs);
+},{passive:true});
+
+if(backTop){
+ backTop.onclick=function(e){e.preventDefault();buyRow.scrollIntoView({behavior:'smooth',block:'center'});};
+}
+
+up(4);
+buyAnchor.className='buy-anchor--solid';
+setTimeout(function(){icd=true;cs();},300);
+
+window.addEventListener('beforeunload',function(){ca();try{if(window.__morphOb)window.__morphOb.disconnect();}catch(e){}});
 })();
 </script>
 
