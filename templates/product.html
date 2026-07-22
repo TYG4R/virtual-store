@@ -674,7 +674,7 @@ function createSVG(navEl) {
   // We use a style rule injected at runtime because ::before can't be inlined
   var styleEl = document.createElement('style');
   styleEl.id = 'navMorphStyle';
-  styleEl.textContent = '.bottom-nav--expanded::before { clip-path: url(#navMorphClip); }';
+  styleEl.textContent = '.bottom-nav::before { clip-path: url(#navMorphClip); will-change: clip-path; }';
   document.head.appendChild(styleEl);
 
   return path;
