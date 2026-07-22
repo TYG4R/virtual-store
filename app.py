@@ -614,7 +614,7 @@ def inject_globals():
         "payment_gateway_ready": str(_settings.get("test_checkout_mode", "false")).lower() != "true" and rzp.is_configured(),
         "testing_mode_active": str(_settings.get("test_checkout_mode", "false")).lower() == "true",
         "razorpay_configured": rzp.is_configured(),
-        "static_version": os.environ.get("STATIC_VERSION", "13"),
+        "static_version": os.environ.get("STATIC_VERSION", "14"),
         "greeting_data": greeting_data,
         "config": config,
     }

@@ -5,6 +5,9 @@
 {% block og_image %}{% if images %}<meta property="og:image" content="{{ url_for('uploaded_file', filename=images[0], _external=True) }}">{% endif %}{% endblock %}
 {% block head %}
 <meta name="description" content="{{ product.short_description or product.name }}">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 {% set active = product.active is defined and product.active %}
 {% set qty = product.quantity if product.quantity is not none else 0 %}
 {% if active and qty > 5 %}
@@ -68,9 +71,9 @@
     <div class="product-gallery reveal">
       <div class="product-gallery__main" id="productGalleryMain">
         {% if images %}
-          <img id="mainImage" src="{{ url_for('uploaded_file', filename=images[0]) }}" alt="{{ product.name }}" width="600" height="750" fetchpriority="high">
+          <img id="mainImage" src="{{ url_for('uploaded_file', filename=images[0]) }}" alt="{{ product.name }}" width="600" height="750" fetchpriority="high" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 400 500%27%3E%3Crect width=%27400%27 height=%27500%27 fill=%27%23111827%27/%3E%3Crect x=%2728%27 y=%2728%27 width=%27344%27 height=%27444%27 rx=%2728%27 fill=%27%231f2937%27 stroke=%27%23374151%27/%3E%3Ccircle cx=%27200%27 cy=%27190%27 r=%2746%27 fill=%27%23374151%27/%3E%3Cpath d=%27M110 370l64-78 46 50 26-30 54 58H110z%27 fill=%27%23374151%27/%3E%3Ctext x=%27200%27 y=%27420%27 text-anchor=%27middle%27 fill=%27%239ca3af%27 font-family=%27Arial%27 font-size=%2722%27%3EImage%3C/text%3E%3C/svg%3E'; this.onerror=null;">
           {% if product.png_thumbnail is defined and product.png_thumbnail %}
-          <img class="png-layer" id="pngLayer" src="{{ url_for('uploaded_file', filename=product.png_thumbnail) }}" alt="{{ product.name }} overlay" loading="lazy">
+          <img class="png-layer" id="pngLayer" src="{{ url_for('uploaded_file', filename=product.png_thumbnail) }}" alt="{{ product.name }} overlay" loading="lazy" onerror="this.style.display='none';this.onerror=null;">
           {% endif %}
         {% else %}
           <div class="card__placeholder" style="height:100%;">{{ product.name[0]|upper }}</div>
@@ -94,7 +97,8 @@
                alt="{{ product.name }} — view {{ loop.index }}"
                tabindex="0" role="button"
                onclick="swapGalleryImage(this.src, this)"
-               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();swapGalleryImage(this.src,this);}">
+               onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();swapGalleryImage(this.src,this);}"
+               onerror="this.style.display='none';this.onerror=null;">
         {% endfor %}
       </div>
       {% endif %}
