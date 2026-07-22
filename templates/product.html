@@ -688,6 +688,7 @@ function createSVG() {
   var defs = document.createElementNS(ns, 'defs');
   var clipPath = document.createElementNS(ns, 'clipPath');
   clipPath.id = 'navMorphClip';
+  clipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
   var path = document.createElementNS(ns, 'path');
   path.id = 'navMorphPath';
   clipPath.appendChild(path);
@@ -708,7 +709,7 @@ var morphPath = createSVG();
 
 function updateClipPath(bowDepth) {
   var vw = window.innerWidth;
-  var totalH = 110;
+  var totalH = nav.getBoundingClientRect().height + 56;
   var curveH = 4;
   var cx = vw / 2;
   var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
@@ -786,6 +787,7 @@ function collapse() {
 
 // ── Scroll-check function — uses buyButtonsRow (shallow), not buyAnchor (deep) ──
 function checkScroll() {
+  if (!initialCheckDone) return;
   var rect = buyButtonsRow.getBoundingClientRect();
   var navRect = nav.getBoundingClientRect();
   if (rect.bottom < navRect.top + 10) {
@@ -835,7 +837,12 @@ if (backToTop) {
 
 // ── Initial state ──
 updateClipPath(4);
-setTimeout(checkScroll, 300);
+buyAnchor.className = 'buy-anchor--solid';
+var initialCheckDone = false;
+setTimeout(function() {
+  initialCheckDone = true;
+  checkScroll();
+}, 300);
 
 // ── Cleanup ──
 window.addEventListener('beforeunload', function() {
