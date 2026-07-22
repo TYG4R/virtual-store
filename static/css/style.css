@@ -4019,84 +4019,117 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
 /* ============================================================
    Mobile buy bar — scroll-aware expand/detach behaviour
    ============================================================ */
-.mobile-buy-bar {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  z-index: 60;
-  background: var(--white);
-  border-top: 1px solid var(--border);
-  padding: 0;
-  align-items: stretch;
-  gap: 0;
-  transition: max-height 0.35s ease, padding 0.35s ease, box-shadow 0.35s ease;
-  overflow: hidden;
-  max-height: 0;
-  box-shadow: 0 -4px 16px rgba(0,0,0,0.04);
-}
-.mobile-buy-bar.expanded {
-  max-height: 80px;
-  padding: 0.7rem 1rem;
-  padding-bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
-}
-.mobile-buy-bar.detached {
-  position: relative;
-  bottom: auto;
-  left: auto;
-  right: auto;
-  z-index: 1;
-  max-height: 80px;
-  padding: 0.7rem 1rem;
-  padding-bottom: 0.7rem;
-  border-top: 1px solid var(--border);
-  margin-top: 1.5rem;
-  box-shadow: none;
-}
-.mobile-buy-bar__inner {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-}
-.mobile-buy-bar__price {
-  font-family: var(--serif);
-  font-size: 1.1rem;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.mobile-buy-bar .btn {
-  flex: 1;
-  padding: 0.75rem 0.75rem;
-  font-size: 0.78rem;
-  min-height: 44px;
-}
-.mobile-buy-bar .btn--outline {
-  flex: 1;
-}
-@media (max-width: 720px) {
-  .mobile-buy-bar.expanded,
-  .mobile-buy-bar.detached {
-    display: flex;
-  }
-  /* Ensure mobile buy bar renders above bottom nav */
-  .mobile-buy-bar.expanded {
-    bottom: 60px;
-  }
-  .mobile-buy-bar.detached {
-    display: flex;
-  }
-  /* Additional bottom nav spacing for product page */
-  .product-info {
-    padding-bottom: 0;
-  }
-}
+/* mobile-buy-bar removed — replaced by liquid glass morphing buy bar above */
 
 /* ============================================================
- Mobile bottom nav: expand on product page scroll
- ============================================================ */
-.bottom-nav.expanded {
-z-index: 81;
-}
+   Morphing liquid glass buy bar — product page mobile
+   Nav expands upward, buttons dissolve in like liquid droplets
+   ============================================================ */
+  @media (max-width: 720px) {
+    .bottom-nav {
+      transition: padding-top 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .bottom-nav--expanded {
+      padding-top: 56px !important;
+      z-index: 81;
+    }
+    .bottom-nav--expanded::before {
+      backdrop-filter: blur(20px) saturate(1.8);
+      -webkit-backdrop-filter: blur(20px) saturate(1.8);
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(255,255,255,0.35);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      .bottom-nav--expanded::before {
+        background: rgba(18,18,18,0.78);
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+    }
+
+    /* Buy tray inside the nav — holds cloned buttons */
+    .bottom-nav__buy-tray {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      overflow: hidden;
+      max-height: 0;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0 0.75rem;
+      transition: max-height 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+      will-change: max-height;
+    }
+    .bottom-nav--expanded .bottom-nav__buy-tray {
+      max-height: 56px;
+    }
+    .bottom-nav__buy-tray .btn {
+      flex: 1;
+      padding: 0.6rem 0.5rem;
+      font-size: 0.78rem;
+      min-height: 40px;
+    }
+    .bottom-nav__buy-tray .btn--outline {
+      flex: 1;
+    }
+
+    /* Inline anchor that dissolves */
+    #buyAnchor {
+      will-change: filter, transform;
+      transition: filter 0.28s cubic-bezier(0.4, 0, 1, 1),
+                  opacity 0.28s cubic-bezier(0.4, 0, 1, 1),
+                  transform 0.28s cubic-bezier(0.4, 0, 1, 1),
+                  visibility 0s 0.28s;
+    }
+    #buyAnchor.buy-anchor--dissolving {
+      filter: blur(6px);
+      opacity: 0;
+      transform: scaleY(0.7) translateY(12px);
+      visibility: hidden;
+      transition: filter 0.28s cubic-bezier(0.4, 0, 1, 1),
+                  opacity 0.28s cubic-bezier(0.4, 0, 1, 1),
+                  transform 0.28s cubic-bezier(0.4, 0, 1, 1),
+                  visibility 0s 0.28s;
+    }
+    #buyAnchor.buy-anchor--resolidifying {
+      filter: blur(6px);
+      opacity: 0;
+      transform: scaleY(0.7) translateY(12px);
+      visibility: visible;
+      transition: filter 0.28s cubic-bezier(0, 0, 0.2, 1),
+                  opacity 0.28s cubic-bezier(0, 0, 0.2, 1),
+                  transform 0.28s cubic-bezier(0, 0, 0.2, 1),
+                  visibility 0s 0s;
+    }
+    #buyAnchor.buy-anchor--solid {
+      filter: blur(0px);
+      opacity: 1;
+      transform: scaleY(1) translateY(0);
+      visibility: visible;
+      transition: filter 0.28s cubic-bezier(0, 0, 0.2, 1),
+                  opacity 0.28s cubic-bezier(0, 0, 0.2, 1),
+                  transform 0.28s cubic-bezier(0, 0, 0.2, 1),
+                  visibility 0s 0s;
+    }
+
+    /* Reduced motion: skip animations entirely */
+    @media (prefers-reduced-motion: no-preference) {
+      /* OK to animate */
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .bottom-nav { transition: none !important; }
+      .bottom-nav__buy-tray { transition: none !important; }
+      #buyAnchor { transition: none !important; }
+      #buyAnchor.buy-anchor--dissolving,
+      #buyAnchor.buy-anchor--resolidifying {
+        filter: none;
+        opacity: 1;
+        transform: none;
+        visibility: visible;
+      }
+    }
+  }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 860px) {

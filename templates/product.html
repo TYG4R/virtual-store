@@ -162,6 +162,7 @@
       <div class="divider"></div>
       <div class="product-description">{{ product.description }}</div>
 
+      <div id="buyAnchor">
       <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="display:flex; gap:0.75rem; align-items:center; margin-bottom:1.25rem;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="product_id" value="{{ product.id }}">
@@ -211,6 +212,7 @@
             you'll be able to track its status any time.{% else %}Testing mode is active. You can still place an order, notifications will fire, and Razorpay will be skipped.{% endif %}{% else %}Checkout is temporarily disabled by the site owner. You can still browse products and add items to your cart.{% endif %}
         </p>
       </div>
+      </div><!-- /#buyAnchor -->
 
       {# share button removed — now overlays the product image #}
 
@@ -373,31 +375,7 @@
   {% endif %}
 </section>
 
-<div class="mobile-buy-bar" id="mobileBuyBar">
-  <div class="mobile-buy-bar__inner">
-    <span class="mobile-buy-bar__price">
-      {% if product.compare_price and product.compare_price > product.price %}
-        <span style="text-decoration:line-through; opacity:0.5; font-size:0.85em;">{{ settings.currency_symbol }}{{ "{:,}".format(product.compare_price) }}</span>
-        <span>{{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}</span>
-      {% else %}
-        {{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}
-      {% endif %}
-    </span>
-    {% if not sold_out and checkout_available %}
-    <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="flex:1;display:flex;gap:0.5rem;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="product_id" value="{{ product.id }}">
-      <input type="hidden" name="quantity" value="1">
-      <button type="submit" class="btn btn--outline" style="flex:1;padding:0.75rem 0.5rem;font-size:0.75rem;">Add to Cart</button>
-    </form>
-    <button class="btn" id="mobileBuyBtn" {% if sold_out %}disabled{% else %}onclick="document.getElementById('buyerName').scrollIntoView({behavior:'smooth', block:'center'}); document.getElementById('buyerName').focus();"{% endif %} style="flex:1;padding:0.75rem 0.5rem;font-size:0.75rem;">{% if sold_out %}Sold Out{% elif checkout_available %}{% if not test_checkout_mode %}Buy Now{% else %}Place Test Order{% endif %}{% else %}Checkout disabled{% endif %}</button>
-    {% elif sold_out %}
-    <button class="btn" disabled style="flex:1;">Sold Out</button>
-    {% else %}
-    <button class="btn" disabled style="flex:1;">Checkout disabled</button>
-    {% endif %}
-  </div>
-</div>
+<!-- mobile-buy-bar removed — liquid glass morphing buy bar replaces it -->
 
 {% if checkout_available %}{% if payment_gateway_ready %}
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>{% endif %}
@@ -633,89 +611,216 @@ function toggleWishlistHeart(btn) {
 </script>
 
 <script nonce="{{ csp_nonce }}">
-// Mobile buy bar — scroll-aware expand/detach behaviour
+// Morphing liquid glass buy bar — buttons dissolve into the nav like a droplet
 (function() {
-var buyBar = document.getElementById('mobileBuyBar');
-if (!buyBar) return;
-
+var buyAnchor = document.getElementById('buyAnchor');
+if (!buyAnchor) return;
 // Only on mobile (<=720px)
 if (!window.matchMedia('(max-width: 720px)').matches) return;
 
-var productSection = document.querySelector('.product-detail');
-if (!productSection) return;
+var nav = document.getElementById('bottomNav');
+var tray = document.getElementById('bottomNavBuyTray');
+var backToTop = document.getElementById('backToTop');
+if (!nav || !tray) return;
 
-var expanded = false;
-var detached = false;
-var productSectionBottom = 0;
-var ticking = false;
+var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function calcProductBottom() {
-  var rect = productSection.getBoundingClientRect();
-  productSectionBottom = rect.bottom;
+// ── Pre-populate the tray with cloned buttons ──
+var trayAdd = document.createElement('form');
+trayAdd.className = 'add-to-cart-form';
+trayAdd.action = buyAnchor.querySelector('.add-to-cart-form').action;
+trayAdd.method = 'POST';
+trayAdd.innerHTML = '<input type="hidden" name="csrf_token" value="' + buyAnchor.querySelector('input[name="csrf_token"]').value + '">' +
+  '<input type="hidden" name="product_id" value="' + buyAnchor.querySelector('input[name="product_id"]').value + '">' +
+  '<input type="hidden" name="quantity" value="1">' +
+  '<button type="submit" class="btn btn--outline" style="flex:1;padding:0.6rem 0.5rem;font-size:0.75rem;">Add to Cart</button>';
+tray.appendChild(trayAdd);
+
+var trayBuy = document.createElement('button');
+trayBuy.className = 'btn';
+trayBuy.style.cssText = 'flex:1;padding:0.6rem 0.5rem;font-size:0.75rem;';
+var buyBtn = document.getElementById('buyBtn');
+if (buyBtn && !buyBtn.disabled) {
+  trayBuy.textContent = buyBtn.textContent.trim();
+  trayBuy.onclick = function() { buyBtn.click(); };
+} else {
+  trayBuy.disabled = true;
+  trayBuy.textContent = 'Sold Out';
+}
+tray.appendChild(trayBuy);
+
+// ── SVG clipPath for the liquid curve ──
+function createSVG(navEl) {
+  var existing = document.getElementById('navMorphClipDefs');
+  if (existing) existing.remove();
+
+  var ns = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(ns, 'svg');
+  svg.id = 'navMorphClipDefs';
+  svg.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
+
+  var defs = document.createElementNS(ns, 'defs');
+  var clipPath = document.createElementNS(ns, 'clipPath');
+  clipPath.id = 'navMorphClip';
+
+  var path = document.createElementNS(ns, 'path');
+  path.id = 'navMorphPath';
+  clipPath.appendChild(path);
+  defs.appendChild(clipPath);
+  svg.appendChild(defs);
+  document.body.appendChild(svg);
+
+  // Also set clip-path on the nav ::before
+  // We use a style rule injected at runtime because ::before can't be inlined
+  var styleEl = document.createElement('style');
+  styleEl.id = 'navMorphStyle';
+  styleEl.textContent = '.bottom-nav--expanded::before { clip-path: url(#navMorphClip); }';
+  document.head.appendChild(styleEl);
+
+  return path;
 }
 
-function onScroll() {
-  if (!ticking) {
-    requestAnimationFrame(function() {
-      handleScroll();
-      ticking = false;
+var morphPath = createSVG(nav);
+
+function updateClipPath(bowDepth) {
+  var vw = window.innerWidth;
+  // totalHeight: nav's full expanded height including safe area
+  var totalH = 110;
+  var curveH = 4; // how far from the top the curve sits
+  // bowDepth positive = bulge upward, negative = sag downward (split tension)
+  var cx = vw / 2;
+  // Cubic bezier: M 0 curveH Q cx (curveH - bowDepth) vw curveH
+  // When bowDepth > 0, center pulls upward creating a dome
+  var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
+  morphPath.setAttribute('d', d);
+}
+
+// ── State machine ──
+var state = 'solid'; // solid | dissolving | dissolved | resolidifying
+var isExpanded = false;
+var rAF = null;
+
+// Easing helpers
+function easeOutQuad(t) { return t * (2 - t); }
+function easeInQuad(t) { return t * t; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function animateMorph(fromBow, toBow, duration, onComplete) {
+  if (reducedMotion) {
+    updateClipPath(toBow);
+    if (onComplete) onComplete();
+    return;
+  }
+  var start = null;
+  function frame(ts) {
+    if (!start) start = ts;
+    var elapsed = ts - start;
+    var t = Math.min(elapsed / duration, 1);
+    var eased = t < 0.5 ? easeOutQuad(t * 2) / 2 : 0.5 + easeInQuad((t - 0.5) * 2) / 2;
+    var current = lerp(fromBow, toBow, eased);
+    updateClipPath(current);
+    if (t < 1) {
+      rAF = requestAnimationFrame(frame);
+    } else {
+      updateClipPath(toBow);
+      if (onComplete) onComplete();
+    }
+  }
+  rAF = requestAnimationFrame(frame);
+}
+
+function cancelAnimation() {
+  if (rAF) {
+    cancelAnimationFrame(rAF);
+    rAF = null;
+  }
+}
+
+function expand() {
+  if (isExpanded) return;
+  isExpanded = true;
+  nav.classList.add('bottom-nav--expanded');
+
+  // Dissolve inline buttons
+  if (!reducedMotion) {
+    buyAnchor.className = 'buy-anchor--dissolving';
+  }
+
+  // Animate clip-path dome
+  animateMorph(4, 18, 380, function() {
+    // Overshoot then settle
+    animateMorph(18, 28, 100, function() {
+      animateMorph(28, 18, 120, function() {});
     });
-    ticking = true;
-  }
+  });
 }
 
-function handleScroll() {
-  var scrollY = window.scrollY || window.pageYOffset;
-  var viewportH = window.innerHeight;
-  var scrollBottom = scrollY + viewportH;
+function collapse(stateToRestore) {
+  if (!isExpanded) return;
+  isExpanded = false;
+  nav.classList.remove('bottom-nav--expanded');
 
-  // Recalc product section bottom in document coords
-  calcProductBottom();
-  var productSectionBottomDoc = productSectionBottom + scrollY;
-
-  if (scrollY > 150) {
-    // User has scrolled down at least 150px
-    if (!expanded) {
-      buyBar.classList.add('expanded');
-      buyBar.classList.remove('detached');
-      expanded = true;
-      detached = false;
-    }
-
-    // Check if we've scrolled past the product section
-    var docBottom = scrollY + viewportH;
-    if (docBottom > productSectionBottomDoc + 50 && !detached) {
-      // Past product section — detach the buy bar
-      buyBar.classList.remove('expanded');
-      buyBar.classList.add('detached');
-      detached = true;
-      expanded = false;
-    } else if (docBottom <= productSectionBottomDoc + 50 && detached) {
-      // Back within product section — rejoin expanded bottom nav
-      buyBar.classList.remove('detached');
-      buyBar.classList.add('expanded');
-      detached = false;
-      expanded = true;
-    }
-  } else {
-    // At top — collapse buy bar, bottom nav returns to normal
-    buyBar.classList.remove('expanded', 'detached');
-    expanded = false;
-    detached = false;
+  // Split animation: first sag downward (tension), then snap flat
+  if (!reducedMotion) {
+    buyAnchor.className = 'buy-anchor--resolidifying';
   }
+
+  animateMorph(18, -10, 180, function() {
+    // Hold tension
+    setTimeout(function() {
+      animateMorph(-10, 4, 200, function() {
+        // Final snap — buttons resolidify
+        if (!reducedMotion) {
+          buyAnchor.className = 'buy-anchor--solid';
+        }
+        updateClipPath(4);
+      });
+    }, 80);
+  });
 }
 
-// Initial setup
-calcProductBottom();
+// ── IntersectionObserver ──
+var observer = new IntersectionObserver(function(entries) {
+  entries.forEach(function(entry) {
+    if (entry.target === buyAnchor) {
+      // When buyAnchor exits viewport from bottom → merge
+      if (!entry.isIntersecting && entry.boundingClientRect.bottom < 0) {
+        expand();
+      }
+      // When buyAnchor re-enters → split
+      if (entry.isIntersecting) {
+        collapse();
+      }
+    }
+  });
+}, {
+  threshold: [0],
+  rootMargin: '0px 0px -60px 0px'
+});
+observer.observe(buyAnchor);
 
-window.addEventListener('scroll', onScroll, { passive: true });
-window.addEventListener('resize', function() {
-  calcProductBottom();
-  handleScroll();
-}, { passive: true });
+// ── Back-to-top intercept ──
+if (backToTop) {
+  backToTop.onclick = function(e) {
+    e.preventDefault();
+    buyAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // observer fires collapse as a side-effect
+  };
+}
 
-// Run once on load
-setTimeout(handleScroll, 300);
+// ── Cleanup on unload ──
+window.addEventListener('beforeunload', function() {
+  cancelAnimation();
+  observer.disconnect();
+});
+
+// Reduced motion: go straight to flat clip path
+if (reducedMotion) {
+  updateClipPath(4);
+} else {
+  // Initial flat curve
+  updateClipPath(4);
+}
 })();
 </script>
 
