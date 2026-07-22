@@ -163,56 +163,60 @@
       <div class="product-description">{{ product.description }}</div>
 
       <div id="buyAnchor">
-      <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="display:flex; gap:0.75rem; align-items:center; margin-bottom:1.25rem;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="product_id" value="{{ product.id }}">
-        <div class="qty-selector">
-          <button type="button" onclick="this.nextElementSibling.stepDown(); this.nextElementSibling.dispatchEvent(new Event('change'));" aria-label="Decrease quantity" {% if sold_out %}disabled{% endif %}>−</button>
-          <input type="number" name="quantity" value="1" min="1" max="99" aria-label="Quantity" {% if sold_out %}disabled{% endif %}>
-          <button type="button" onclick="this.previousElementSibling.stepUp(); this.previousElementSibling.dispatchEvent(new Event('change'));" aria-label="Increase quantity" {% if sold_out %}disabled{% endif %}>+</button>
-        </div>
-        <button type="submit" class="btn btn--outline" style="flex:1;" {% if sold_out %}disabled{% endif %}>{% if sold_out %}Sold Out{% else %}Add to Cart{% endif %}</button>
-      </form>
-
-      <div id="buyForm">
-        {% if not customer_logged_in %}
-        <p class="auth-inline-hint">
-          <a href="#" onclick="openAuthModal(); return false;">Sign in with your phone</a> for instant checkout, or continue as a guest below.
-        </p>
-        {% endif %}
-        <div class="field">
-          <label>Full Name</label>
-          <input type="text" id="buyerName" placeholder="Your name" value="{{ current_customer_name }}">
-        </div>
-        <div class="field">
-          <label>Email</label>
-          <input type="email" id="buyerEmail" placeholder="you@example.com" value="{{ current_customer_email }}">
-          <small>Your product & order status will be tied to this email.</small>
-        </div>
-        <div class="field">
-          <label>Phone (optional)</label>
-          <input type="tel" id="buyerPhone" placeholder="For faster support" value="{{ current_customer_phone }}">
-        </div>
-        <div class="field">
-          <label>Coupon Code (optional)</label>
-          <div style="display:flex; gap:0.6rem;">
-            <input type="text" id="couponCode" placeholder="e.g. WELCOME10" style="text-transform:uppercase;">
-            <button type="button" class="btn btn--outline btn--sm" style="flex-shrink:0;" onclick="applyCoupon({{ product.id }})">Apply</button>
+          <!-- Buttons row: qty + add-to-cart + buy-now, side by side on mobile -->
+          <div class="buy-buttons-row" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1.25rem; flex-wrap:nowrap;">
+            <div class="qty-selector" style="flex-shrink:0;">
+              <button type="button" onclick="var inp=this.nextElementSibling; inp.stepDown(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Decrease quantity" {% if sold_out %}disabled{% endif %}>−</button>
+              <input type="number" name="qty_visible" value="1" min="1" max="99" aria-label="Quantity" {% if sold_out %}disabled{% endif %} onchange="var h=this.closest('.buy-buttons-row').querySelector('.buy-row-qty'); if(h)h.value=this.value;">
+              <button type="button" onclick="var inp=this.previousElementSibling; inp.stepUp(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Increase quantity" {% if sold_out %}disabled{% endif %}>+</button>
+            </div>
+            <form class="add-to-cart-form" action="{{ url_for('cart_add') }}" method="POST" style="flex:1; min-width:0;">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="product_id" value="{{ product.id }}">
+              <input type="hidden" name="quantity" value="1" class="buy-row-qty">
+              <button type="submit" class="btn btn--outline" style="width:100%;" {% if sold_out %}disabled{% endif %}>{% if sold_out %}Sold Out{% else %}Add to Cart{% endif %}</button>
+            </form>
+            <button class="btn" id="buyBtn" style="flex:1; min-width:0;" data-base-price="{{ product.price }}" data-currency="{{ settings.currency_symbol }}"
+                    {% if checkout_available and not sold_out %}onclick="startCheckout({{ product.id }}, '{{ product.name|e }}')"{% else %}disabled{% endif %}>
+              {% if sold_out %}Sold Out{% elif checkout_available %}{% if not test_checkout_mode %}Buy Now{% else %}Test Order{% endif %}{% else %}Disabled{% endif %}
+              </button>
           </div>
-          <p id="couponMessage" style="margin-top:0.5rem; font-size:0.82rem; display:none;"></p>
-        </div>
-        <div class="auto-coupon-banner" id="autoCouponBox" style="display:none; margin-bottom:1rem;"></div>
-        <button class="btn btn--full" id="buyBtn" data-base-price="{{ product.price }}" data-currency="{{ settings.currency_symbol }}"
-                {% if checkout_available and not sold_out %}onclick="startCheckout({{ product.id }}, '{{ product.name|e }}')"{% else %}disabled{% endif %}>
-          {% if sold_out %}Sold Out{% elif checkout_available %}{% if not test_checkout_mode %}Buy Now — {{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}{% else %}Place Test Order — {{ settings.currency_symbol }}{{ "{:,}".format(product.price) }}{% endif %}{% else %}Checkout temporarily disabled{% endif %}
-          </button>
-          <p id="buyError" style="color:#7a2222; margin-top:0.75rem; display:none;"></p>
-          <p style="margin-top:1rem; font-size:0.8rem; color:var(--grey-500);">
-            {% if checkout_available %}{% if not test_checkout_mode %}Secure payment via Razorpay. After payment, your order is reviewed and delivered by our team —
-            you'll be able to track its status any time.{% else %}Testing mode is active. You can still place an order, notifications will fire, and Razorpay will be skipped.{% endif %}{% else %}Checkout is temporarily disabled by the site owner. You can still browse products and add items to your cart.{% endif %}
-        </p>
-      </div>
-      </div><!-- /#buyAnchor -->
+
+          <div id="buyForm" style="display:none;">
+            {% if not customer_logged_in %}
+            <p class="auth-inline-hint">
+              <a href="#" onclick="openAuthModal(); return false;">Sign in with your phone</a> for instant checkout, or continue as a guest below.
+            </p>
+            {% endif %}
+            <div class="field">
+              <label>Full Name</label>
+              <input type="text" id="buyerName" placeholder="Your name" value="{{ current_customer_name }}">
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input type="email" id="buyerEmail" placeholder="you@example.com" value="{{ current_customer_email }}">
+              <small>Your product & order status will be tied to this email.</small>
+            </div>
+            <div class="field">
+              <label>Phone (optional)</label>
+              <input type="tel" id="buyerPhone" placeholder="For faster support" value="{{ current_customer_phone }}">
+            </div>
+            <div class="field">
+              <label>Coupon Code (optional)</label>
+              <div style="display:flex; gap:0.6rem;">
+                <input type="text" id="couponCode" placeholder="e.g. WELCOME10" style="text-transform:uppercase;">
+                <button type="button" class="btn btn--outline btn--sm" style="flex-shrink:0;" onclick="applyCoupon({{ product.id }})">Apply</button>
+              </div>
+              <p id="couponMessage" style="margin-top:0.5rem; font-size:0.82rem; display:none;"></p>
+            </div>
+            <div class="auto-coupon-banner" id="autoCouponBox" style="display:none; margin-bottom:1rem;"></div>
+              <p id="buyError" style="color:#7a2222; margin-top:0.75rem; display:none;"></p>
+              <p style="margin-top:1rem; font-size:0.8rem; color:var(--grey-500);">
+                {% if checkout_available %}{% if not test_checkout_mode %}Secure payment via Razorpay. After payment, your order is reviewed and delivered by our team —
+                you'll be able to track its status any time.{% else %}Testing mode is active. You can still place an order, notifications will fire, and Razorpay will be skipped.{% endif %}{% else %}Checkout is temporarily disabled by the site owner. You can still browse products and add items to your cart.{% endif %}
+            </p>
+          </div>
+          </div><!-- /#buyAnchor -->
 
       {# share button removed — now overlays the product image #}
 
@@ -626,201 +630,208 @@ if (!nav || !tray) return;
 var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ── Pre-populate the tray with cloned buttons ──
-var trayAdd = document.createElement('form');
+// Use the add-to-cart form from buyAnchor
+var atcForm = buyAnchor.querySelector('.add-to-cart-form');
+if (atcForm) {
+var trayAdd = atcForm.cloneNode(true);
 trayAdd.className = 'add-to-cart-form';
-trayAdd.action = buyAnchor.querySelector('.add-to-cart-form').action;
-trayAdd.method = 'POST';
-trayAdd.innerHTML = '<input type="hidden" name="csrf_token" value="' + buyAnchor.querySelector('input[name="csrf_token"]').value + '">' +
-  '<input type="hidden" name="product_id" value="' + buyAnchor.querySelector('input[name="product_id"]').value + '">' +
-  '<input type="hidden" name="quantity" value="1">' +
-  '<button type="submit" class="btn btn--outline" style="flex:1;padding:0.6rem 0.5rem;font-size:0.75rem;">Add to Cart</button>';
+trayAdd.style.cssText = 'flex:1;min-width:0;';
+// Ensure quantity is 1 in tray
+var qtyInput = trayAdd.querySelector('input[name="quantity"]');
+if (qtyInput) qtyInput.value = '1';
+var trayBtn = trayAdd.querySelector('button');
+if (trayBtn) { trayBtn.style.cssText = 'width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;'; }
 tray.appendChild(trayAdd);
+}
 
-var trayBuy = document.createElement('button');
-trayBuy.className = 'btn';
-trayBuy.style.cssText = 'flex:1;padding:0.6rem 0.5rem;font-size:0.75rem;';
+// Clone the buy button into tray
 var buyBtn = document.getElementById('buyBtn');
 if (buyBtn && !buyBtn.disabled) {
-  trayBuy.textContent = buyBtn.textContent.trim();
-  trayBuy.onclick = function() { buyBtn.click(); };
-} else {
-  trayBuy.disabled = true;
-  trayBuy.textContent = 'Sold Out';
-}
+var trayBuy = buyBtn.cloneNode(true);
+trayBuy.id = 'trayBuyBtn';
+trayBuy.style.cssText = 'flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
+trayBuy.onclick = function(e) {
+  startCheckout({{ product.id }}, '{{ product.name|e }}');
+};
 tray.appendChild(trayBuy);
+} else {
+var trayBuy = document.createElement('button');
+trayBuy.className = 'btn';
+trayBuy.style.cssText = 'flex:1;padding:0.6rem 0.5rem;font-size:0.78rem;';
+trayBuy.disabled = true;
+trayBuy.textContent = 'Sold Out';
+tray.appendChild(trayBuy);
+}
 
 // ── SVG clipPath for the liquid curve ──
-function createSVG(navEl) {
-  var existing = document.getElementById('navMorphClipDefs');
-  if (existing) existing.remove();
+function createSVG() {
+var existing = document.getElementById('navMorphClipDefs');
+if (existing) existing.remove();
 
-  var ns = 'http://www.w3.org/2000/svg';
-  var svg = document.createElementNS(ns, 'svg');
-  svg.id = 'navMorphClipDefs';
-  svg.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
+var ns = 'http://www.w3.org/2000/svg';
+var svg = document.createElementNS(ns, 'svg');
+svg.id = 'navMorphClipDefs';
+svg.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
 
-  var defs = document.createElementNS(ns, 'defs');
-  var clipPath = document.createElementNS(ns, 'clipPath');
-  clipPath.id = 'navMorphClip';
+var defs = document.createElementNS(ns, 'defs');
+var clipPath = document.createElementNS(ns, 'clipPath');
+clipPath.id = 'navMorphClip';
+var path = document.createElementNS(ns, 'path');
+path.id = 'navMorphPath';
+clipPath.appendChild(path);
+defs.appendChild(clipPath);
+svg.appendChild(defs);
+document.body.appendChild(svg);
 
-  var path = document.createElementNS(ns, 'path');
-  path.id = 'navMorphPath';
-  clipPath.appendChild(path);
-  defs.appendChild(clipPath);
-  svg.appendChild(defs);
-  document.body.appendChild(svg);
+var styleEl = document.createElement('style');
+styleEl.id = 'navMorphStyle';
+styleEl.textContent = '.bottom-nav::before { clip-path: url(#navMorphClip); will-change: clip-path; }';
+document.head.appendChild(styleEl);
 
-  // Also set clip-path on the nav ::before
-  // We use a style rule injected at runtime because ::before can't be inlined
-  var styleEl = document.createElement('style');
-  styleEl.id = 'navMorphStyle';
-  styleEl.textContent = '.bottom-nav::before { clip-path: url(#navMorphClip); will-change: clip-path; }';
-  document.head.appendChild(styleEl);
-
-  return path;
+return path;
 }
 
-var morphPath = createSVG(nav);
+var morphPath = createSVG();
 
 function updateClipPath(bowDepth) {
-  var vw = window.innerWidth;
-  // totalHeight: nav's full expanded height including safe area
-  var totalH = 110;
-  var curveH = 4; // how far from the top the curve sits
-  // bowDepth positive = bulge upward, negative = sag downward (split tension)
-  var cx = vw / 2;
-  // Cubic bezier: M 0 curveH Q cx (curveH - bowDepth) vw curveH
-  // When bowDepth > 0, center pulls upward creating a dome
-  var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
-  morphPath.setAttribute('d', d);
+var vw = window.innerWidth;
+var totalH = 110;
+var curveH = 4;
+var cx = vw / 2;
+var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
+morphPath.setAttribute('d', d);
 }
 
 // ── State machine ──
-var state = 'solid'; // solid | dissolving | dissolved | resolidifying
 var isExpanded = false;
 var rAF = null;
 
-// Easing helpers
 function easeOutQuad(t) { return t * (2 - t); }
 function easeInQuad(t) { return t * t; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function animateMorph(fromBow, toBow, duration, onComplete) {
-  if (reducedMotion) {
+if (reducedMotion) {
+  updateClipPath(toBow);
+  if (onComplete) onComplete();
+  return;
+}
+var start = null;
+function frame(ts) {
+  if (!start) start = ts;
+  var elapsed = ts - start;
+  var t = Math.min(elapsed / duration, 1);
+  var eased = t < 0.5 ? easeOutQuad(t * 2) / 2 : 0.5 + easeInQuad((t - 0.5) * 2) / 2;
+  var current = lerp(fromBow, toBow, eased);
+  updateClipPath(current);
+  if (t < 1) {
+    rAF = requestAnimationFrame(frame);
+  } else {
     updateClipPath(toBow);
     if (onComplete) onComplete();
-    return;
   }
-  var start = null;
-  function frame(ts) {
-    if (!start) start = ts;
-    var elapsed = ts - start;
-    var t = Math.min(elapsed / duration, 1);
-    var eased = t < 0.5 ? easeOutQuad(t * 2) / 2 : 0.5 + easeInQuad((t - 0.5) * 2) / 2;
-    var current = lerp(fromBow, toBow, eased);
-    updateClipPath(current);
-    if (t < 1) {
-      rAF = requestAnimationFrame(frame);
-    } else {
-      updateClipPath(toBow);
-      if (onComplete) onComplete();
-    }
-  }
-  rAF = requestAnimationFrame(frame);
+}
+rAF = requestAnimationFrame(frame);
 }
 
-function cancelAnimation() {
-  if (rAF) {
-    cancelAnimationFrame(rAF);
-    rAF = null;
-  }
+function cancelAnim() {
+if (rAF) { cancelAnimationFrame(rAF); rAF = null; }
 }
 
 function expand() {
-  if (isExpanded) return;
-  isExpanded = true;
-  nav.classList.add('bottom-nav--expanded');
+if (isExpanded) return;
+isExpanded = true;
+nav.classList.add('bottom-nav--expanded');
+if (!reducedMotion) {
+  buyAnchor.className = 'buy-anchor--dissolving';
+}
+animateMorph(4, 18, 380, function() {
+  animateMorph(18, 28, 100, function() {
+    animateMorph(28, 18, 120, function() {});
+  });
+});
+}
 
-  // Dissolve inline buttons
-  if (!reducedMotion) {
-    buyAnchor.className = 'buy-anchor--dissolving';
-  }
-
-  // Animate clip-path dome
-  animateMorph(4, 18, 380, function() {
-    // Overshoot then settle
-    animateMorph(18, 28, 100, function() {
-      animateMorph(28, 18, 120, function() {});
+function collapse() {
+if (!isExpanded) return;
+isExpanded = false;
+nav.classList.remove('bottom-nav--expanded');
+if (!reducedMotion) {
+  buyAnchor.className = 'buy-anchor--resolidifying';
+}
+animateMorph(18, -10, 180, function() {
+  setTimeout(function() {
+    animateMorph(-10, 4, 200, function() {
+      if (!reducedMotion) {
+        buyAnchor.className = 'buy-anchor--solid';
+      }
+      updateClipPath(4);
     });
-  });
+  }, 80);
+});
 }
 
-function collapse(stateToRestore) {
-  if (!isExpanded) return;
-  isExpanded = false;
-  nav.classList.remove('bottom-nav--expanded');
-
-  // Split animation: first sag downward (tension), then snap flat
-  if (!reducedMotion) {
-    buyAnchor.className = 'buy-anchor--resolidifying';
-  }
-
-  animateMorph(18, -10, 180, function() {
-    // Hold tension
-    setTimeout(function() {
-      animateMorph(-10, 4, 200, function() {
-        // Final snap — buttons resolidify
-        if (!reducedMotion) {
-          buyAnchor.className = 'buy-anchor--solid';
-        }
-        updateClipPath(4);
-      });
-    }, 80);
-  });
+// ── Scroll-check function (works on ALL browsers) ──
+function checkScroll() {
+var anchorRect = buyAnchor.getBoundingClientRect();
+var navRect = nav.getBoundingClientRect();
+// Anchor bottom is above nav top → merge
+if (anchorRect.bottom < navRect.top + 10) {
+  expand();
+} else {
+  collapse();
+}
 }
 
-// ── IntersectionObserver ──
+// ── Primary: IntersectionObserver (best when it works) ──
+try {
 var observer = new IntersectionObserver(function(entries) {
   entries.forEach(function(entry) {
-    if (entry.target === buyAnchor) {
-      // When buyAnchor exits viewport from bottom → merge
-      if (!entry.isIntersecting && entry.boundingClientRect.top < window.innerHeight) {
-        expand();
-      }
-      // When buyAnchor re-enters → split
-      if (entry.isIntersecting) {
-        collapse();
-      }
+    if (entry.target !== buyAnchor) return;
+    // Only use observer when it fires reliably — treat isIntersecting flip as hint
+    if (!entry.isIntersecting) {
+      expand();
+    } else {
+      collapse();
     }
   });
-}, {
-  threshold: [0],
-  rootMargin: '0px 0px -60px 0px'
-});
+}, { threshold: [0], rootMargin: '0px 0px -60px 0px' });
 observer.observe(buyAnchor);
+} catch(e) {
+// Observer not available, fall through to scroll
+}
 
-// ── Back-to-top intercept ──
+// ── Secondary: scroll event fallback (catches Android where observer is unreliable) ──
+var scrollTick = null;
+window.addEventListener('scroll', function() {
+if (scrollTick) cancelAnimationFrame(scrollTick);
+scrollTick = requestAnimationFrame(checkScroll);
+}, { passive: true });
+
+// Also check on resize (orientation change, keyboard open)
+window.addEventListener('resize', function() {
+if (scrollTick) cancelAnimationFrame(scrollTick);
+scrollTick = requestAnimationFrame(checkScroll);
+}, { passive: true });
+
+// ── Back-to-top → scroll to anchor ──
 if (backToTop) {
-  backToTop.onclick = function(e) {
-    e.preventDefault();
-    buyAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // observer fires collapse as a side-effect
-  };
+backToTop.onclick = function(e) {
+  e.preventDefault();
+  buyAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
 }
 
-// ── Cleanup on unload ──
+// ── Initial state ──
+updateClipPath(4);
+// Also check on load after layout settles
+setTimeout(checkScroll, 300);
+
+// ── Cleanup ──
 window.addEventListener('beforeunload', function() {
-  cancelAnimation();
-  observer.disconnect();
+cancelAnim();
+try { if (observer) observer.disconnect(); } catch(e) {}
 });
-
-// Reduced motion: go straight to flat clip path
-if (reducedMotion) {
-  updateClipPath(4);
-} else {
-  // Initial flat curve
-  updateClipPath(4);
-}
 })();
 </script>
 

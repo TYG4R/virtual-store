@@ -2036,6 +2036,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .bottom-nav__item--active { color: var(--black); }
   .bottom-nav__item--active svg { transform: scale(1.1); }
   .bottom-nav__item:active svg { transform: scale(0.9); }
+
+  /* Buy buttons row — side by side on mobile */
+  .buy-buttons-row .btn {
+    font-size: 0.78rem;
+    padding: 0.6rem 0.4rem;
+    min-height: 40px;
+    white-space: nowrap;
+  }
+  .buy-buttons-row .qty-selector input {
+    width: 2rem;
+  }
+  .buy-buttons-row .qty-selector button {
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+  }
   .bottom-nav__item--active::before {
     content: ""; position: absolute; top: -0.35rem; left: 50%;
     transform: translateX(-50%); width: 24px; height: 2px;
