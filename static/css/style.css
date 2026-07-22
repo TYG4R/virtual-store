@@ -4040,11 +4040,12 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
 
 /* ============================================================
    Morphing liquid glass buy bar — product page mobile
-   Nav expands upward, buttons dissolve in like liquid droplets
+   Nav expands upward, buttons dissolve in, liquid wave top edge
    ============================================================ */
   @media (max-width: 720px) {
     .bottom-nav {
-      transition: padding-top 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  padding-bottom 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .bottom-nav--expanded {
       transform: translateY(-56px);
@@ -4052,12 +4053,18 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
       overflow: visible;
       padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
     }
+    /* Liquid wave top edge on expanded nav — a curved pseudo-border
+       using an inset box-shadow that only shows on the top edge,
+       combined with a skewed inner highlight for the droplet curve look */
     .bottom-nav--expanded::before {
       backdrop-filter: blur(20px) saturate(1.8);
       -webkit-backdrop-filter: blur(20px) saturate(1.8);
       background: rgba(255,255,255,0.72);
       border: 1px solid rgba(255,255,255,0.35);
       box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+      border-radius: 24px 24px 0 0;
+      -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% -10%, black, black 60%, transparent 70%);
+      mask-image: radial-gradient(ellipse 70% 60% at 50% -10%, black, black 60%, transparent 70%);
     }
     @media (prefers-color-scheme: dark) {
       .bottom-nav--expanded::before {
@@ -4078,7 +4085,7 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
       background: transparent;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.28s ease;
+      transition: opacity 0.28s ease 0.1s;
     }
     .bottom-nav--expanded .bottom-nav__buy-tray {
       opacity: 1;
@@ -4094,29 +4101,36 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
       flex: 1;
     }
 
-    /* Inline anchor that dissolves */
+    /* Inline anchor that dissolves — translateY(+18px) makes buttons
+       visually "fall down" into the nav, creating the droplet merge */
     #buyAnchor {
+      position: relative;
+      z-index: 82;
       will-change: filter, transform;
-      transition: filter 0.28s cubic-bezier(0.4, 0, 1, 1),
-                  opacity 0.28s cubic-bezier(0.4, 0, 1, 1),
-                  transform 0.28s cubic-bezier(0.4, 0, 1, 1),
-                  visibility 0s 0.28s;
+      transition: filter 0.32s cubic-bezier(0.4, 0, 1, 1),
+                  opacity 0.32s cubic-bezier(0.4, 0, 1, 1),
+                  transform 0.32s cubic-bezier(0.4, 0, 1, 1),
+                  visibility 0s 0.32s;
     }
     #buyAnchor.buy-anchor--dissolving {
-      filter: blur(6px);
+      filter: blur(8px);
       opacity: 0;
-      transform: scaleY(0.7) translateY(12px);
+      transform: scaleY(0.65) translateY(18px);
       visibility: hidden;
-      transition: filter 0.28s cubic-bezier(0.4, 0, 1, 1),
-                  opacity 0.28s cubic-bezier(0.4, 0, 1, 1),
-                  transform 0.28s cubic-bezier(0.4, 0, 1, 1),
-                  visibility 0s 0.28s;
+      transition: filter 0.32s cubic-bezier(0.4, 0, 1, 1),
+                  opacity 0.32s cubic-bezier(0.4, 0, 1, 1),
+                  transform 0.32s cubic-bezier(0.4, 0, 1, 1),
+                  visibility 0s 0.32s;
     }
-    #buyAnchor.buy-anchor--resolidifying {
-      filter: blur(6px);
-      opacity: 0;
-      transform: scaleY(0.7) translateY(12px);
+    #buyAnchor.buy-anchor--solid {
+      filter: blur(0px);
+      opacity: 1;
+      transform: scaleY(1) translateY(0);
       visibility: visible;
+      transition: filter 0.32s cubic-bezier(0, 0, 0.2, 1),
+                  opacity 0.32s cubic-bezier(0, 0, 0.2, 1),
+                  transform 0.32s cubic-bezier(0, 0, 0.2, 1),
+                  visibility 0s 0s;
       transition: filter 0.28s cubic-bezier(0, 0, 0.2, 1),
                   opacity 0.28s cubic-bezier(0, 0, 0.2, 1),
                   transform 0.28s cubic-bezier(0, 0, 0.2, 1),
@@ -4141,8 +4155,7 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
       .bottom-nav { transition: none !important; }
       .bottom-nav__buy-tray { transition: none !important; }
       #buyAnchor { transition: none !important; }
-      #buyAnchor.buy-anchor--dissolving,
-      #buyAnchor.buy-anchor--resolidifying {
+      #buyAnchor.buy-anchor--dissolving {
         filter: none;
         opacity: 1;
         transform: none;

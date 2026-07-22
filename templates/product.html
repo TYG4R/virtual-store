@@ -626,21 +626,17 @@ function toggleWishlistHeart(btn) {
 })();
 </script>
 
-<div id="morphDebug" style="position:fixed;top:0;left:0;z-index:9999;background:red;color:white;padding:4px 8px;font-size:14px;font-family:sans-serif;">wait</div>
+    
 
 <script nonce="{{ csp_nonce }}">
-// Morphing liquid glass — mobile buy bar merge/split
+// Liquid glass buy bar — pure CSS transitions, no rAF clip-path
 document.addEventListener('DOMContentLoaded',function(){
 var buyAnchor=document.getElementById('buyAnchor');
 var buyRow=document.getElementById('buyButtonsRow');
 var nav=document.getElementById('bottomNav');
 var tray=document.getElementById('bottomNavBuyTray');
 var section=document.getElementById('productDetail');
-if(!buyRow||!nav||!tray||!section){
-var d=document.getElementById('morphDebug');
-if(d)d.textContent='init fail';
-return;
-}
+if(!buyRow||!nav||!tray||!section)return;
 
 // Tray clone buttons
 var f=buyRow.querySelector('.add-to-cart-form');
@@ -660,99 +656,44 @@ if(bb&&!bb.disabled){
  tray.appendChild(tb2);
 }
 
-// SVG clipPath setup
-(function(){
- var old=document.getElementById('navMorphClipDefs');
- if(old)old.remove();
- var ns='http://www.w3.org/2000/svg';
- var svg=document.createElementNS(ns,'svg');
- svg.id='navMorphClipDefs';
- svg.style.cssText='position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
- var defs=document.createElementNS(ns,'defs');
- var cp=document.createElementNS(ns,'clipPath');
- cp.id='navMorphClip';cp.setAttribute('clipPathUnits','userSpaceOnUse');
- var pth=document.createElementNS(ns,'path');pth.id='navMorphPath';
- cp.appendChild(pth);defs.appendChild(cp);svg.appendChild(defs);
- document.body.appendChild(svg);
- var s=document.createElement('style');
- s.id='navMorphStyle';
- s.textContent='.bottom-nav--expanded{clip-path:url(#navMorphClip)}';
- document.head.appendChild(s);
- window.__morphPath=pth;
-})();
-
 var rm=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-var exp=false,raf=null,cooldown=0;
+var exp=false;
 
-function up(bd){
- var vw=window.innerWidth;
- var th=nav.getBoundingClientRect().height+56;
- var d='M0,4 Q'+(vw/2)+','+(4-bd)+' '+vw+',4 L'+vw+','+th+' L0,'+th+' Z';
- window.__morphPath.setAttribute('d',d);
-}
-
-function anim(fr,to,du,cb){
- if(rm){up(to);if(cb)cb();return;}
- var st=null;
- function fk(ts){
-if(!st)st=ts;
-var t=Math.min((ts-st)/du,1);
-var e=t<0.5?2*t*t:-1+(4-2*t)*t;
-up(fr+(to-fr)*e);
-if(t<1)raf=requestAnimationFrame(fk);
-else{raf=null;up(to);if(cb)cb();}
+// Toggle state based on scroll position
+function setExpanded(v){
+ if(v===exp)return;
+ exp=v;
+ if(v){
+  nav.classList.add('bottom-nav--expanded');
+  buyAnchor.className='buy-anchor--dissolving';
+ }else{
+  nav.classList.remove('bottom-nav--expanded');
+  buyAnchor.className='buy-anchor--solid';
  }
- raf=requestAnimationFrame(fk);
 }
-function ca(){if(raf){cancelAnimationFrame(raf);raf=null;}}
 
-function dbg(t){var d=document.getElementById('morphDebug');if(d)d.textContent=t;}
-dbg('ok');
-
-var prevSb=0;
+// Check thresholds on scroll
 function tick(){
- var ts=Date.now();
- if(ts<cooldown)return;
  var ab=buyAnchor.getBoundingClientRect().bottom;
  var nb=nav.getBoundingClientRect().top;
  var sb=section.getBoundingClientRect().bottom;
  
  if(exp){
-   // Collapse: scrolled past product section (section bottom above nav)
-   // OR scrolled back up past buy buttons (anchor bottom below nav)
-   if((sb<nb-10&&prevSb-sb>40)||(ab>nb+100)){
-    ca();exp=false;cooldown=ts+400;
-    prevSb=0;
-    nav.classList.remove('bottom-nav--expanded');
-    if(!rm)buyAnchor.className='buy-anchor--solid';
-    anim(28,4,250);
-    dbg('coll');
-   }
+  // Collapse: section fully above nav (scrolled past it)
+  // or buy anchor visible below nav (scrolled back to top)
+  if(sb<nb||ab>nb+80)setExpanded(false);
  }else{
-  // Collapse → expand: buy anchor bottom above nav top, section still visible
-  // Guard: require sb to still be visible (haven't scrolled past section)
-  if(ab<nb+60&&sb>nb-30){
-   ca();exp=true;cooldown=ts+400;
-   prevSb=sb;
-   nav.classList.add('bottom-nav--expanded');
-   if(!rm)buyAnchor.className='buy-anchor--dissolving';
-   anim(4,28,350);
-   dbg('exp');
-  }
+  // Expand: buy anchor above nav top AND section still visible
+  if(ab<nb+50&&sb>nb-30)setExpanded(true);
  }
 }
 
 var stk=null;
-function stkTick(){if(stk)cancelAnimationFrame(stk);stk=requestAnimationFrame(tick);}
-window.addEventListener('scroll',stkTick,{passive:true});
-window.addEventListener('resize',function(){
- if(exp)up(28);
-},{passive:true});
+window.addEventListener('scroll',function(){if(stk)cancelAnimationFrame(stk);stk=requestAnimationFrame(tick);},{passive:true});
+window.addEventListener('resize',function(){if(stk)cancelAnimationFrame(stk);stk=requestAnimationFrame(tick);},{passive:true});
 
-up(4);
 buyAnchor.className='buy-anchor--solid';
-
-window.addEventListener('beforeunload',function(){ca();});
+});
 });
 </script>
 
