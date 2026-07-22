@@ -176,7 +176,7 @@
             .buy-buttons-row .qty-selector button { width:30px !important; height:30px !important; font-size:1rem !important; }
           }
           </style>
-          <div class="buy-buttons-row" style="display:flex !important; gap:0.5rem !important; align-items:center !important; margin-bottom:1.25rem !important; flex-wrap:nowrap !important;">
+          <div id="buyButtonsRow" class="buy-buttons-row" style="display:flex !important; gap:0.5rem !important; align-items:center !important; margin-bottom:1.25rem !important; flex-wrap:nowrap !important;">
             <div class="qty-selector" style="flex-shrink:0 !important;">
                 <button type="button" onclick="var inp=this.nextElementSibling; inp.stepDown(); inp.dispatchEvent(new Event('change',{bubbles:true}));" aria-label="Decrease quantity" {% if sold_out %}disabled{% endif %}>−</button>
                 <input type="number" name="qty_visible" value="1" min="1" max="99" aria-label="Quantity" {% if sold_out %}disabled{% endif %} onchange="var h=this.closest('.buy-buttons-row').querySelector('.buy-row-qty'); if(h)h.value=this.value;">
@@ -630,7 +630,8 @@ function toggleWishlistHeart(btn) {
 // Morphing liquid glass buy bar — buttons dissolve into the nav like a droplet
 (function() {
 var buyAnchor = document.getElementById('buyAnchor');
-if (!buyAnchor) return;
+var buyButtonsRow = document.getElementById('buyButtonsRow');
+if (!buyAnchor || !buyButtonsRow) return;
 // Only on mobile (<=720px)
 if (!window.matchMedia('(max-width: 720px)').matches) return;
 
@@ -642,76 +643,76 @@ if (!nav || !tray) return;
 var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ── Pre-populate the tray with cloned buttons ──
-// Use the add-to-cart form from buyAnchor
-var atcForm = buyAnchor.querySelector('.add-to-cart-form');
+// Use the add-to-cart form from buyButtonsRow
+var atcForm = buyButtonsRow.querySelector('.add-to-cart-form');
 if (atcForm) {
-var trayAdd = atcForm.cloneNode(true);
-trayAdd.className = 'add-to-cart-form';
-trayAdd.style.cssText = 'flex:1;min-width:0;';
-// Ensure quantity is 1 in tray
-var qtyInput = trayAdd.querySelector('input[name="quantity"]');
-if (qtyInput) qtyInput.value = '1';
-var trayBtn = trayAdd.querySelector('button');
-if (trayBtn) { trayBtn.style.cssText = 'width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;'; }
-tray.appendChild(trayAdd);
+  var trayAdd = atcForm.cloneNode(true);
+  trayAdd.className = 'add-to-cart-form';
+  trayAdd.style.cssText = 'flex:1;min-width:0;';
+  var qtyInput = trayAdd.querySelector('input[name="quantity"]');
+  if (qtyInput) qtyInput.value = '1';
+  var trayBtn = trayAdd.querySelector('button');
+  if (trayBtn) { trayBtn.style.cssText = 'width:100%;padding:0.6rem 0.5rem;font-size:0.78rem;'; }
+  tray.appendChild(trayAdd);
 }
 
 // Clone the buy button into tray
 var buyBtn = document.getElementById('buyBtn');
 if (buyBtn && !buyBtn.disabled) {
-var trayBuy = buyBtn.cloneNode(true);
-trayBuy.id = 'trayBuyBtn';
-trayBuy.style.cssText = 'flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
-trayBuy.onclick = function(e) {
-  startCheckout({{ product.id }}, '{{ product.name|e }}');
-};
-tray.appendChild(trayBuy);
+  var trayBuy = buyBtn.cloneNode(true);
+  trayBuy.id = 'trayBuyBtn';
+  trayBuy.style.cssText = 'flex:1;min-width:0;padding:0.6rem 0.5rem;font-size:0.78rem;';
+  trayBuy.onclick = function(e) {
+    startCheckout({{ product.id }}, '{{ product.name|e }}');
+  };
+  tray.appendChild(trayBuy);
 } else {
-var trayBuy = document.createElement('button');
-trayBuy.className = 'btn';
-trayBuy.style.cssText = 'flex:1;padding:0.6rem 0.5rem;font-size:0.78rem;';
-trayBuy.disabled = true;
-trayBuy.textContent = 'Sold Out';
-tray.appendChild(trayBuy);
+  var trayBuy = document.createElement('button');
+  trayBuy.className = 'btn';
+  trayBuy.style.cssText = 'flex:1;padding:0.6rem 0.5rem;font-size:0.78rem;';
+  trayBuy.disabled = true;
+  trayBuy.textContent = 'Sold Out';
+  tray.appendChild(trayBuy);
 }
 
 // ── SVG clipPath for the liquid curve ──
 function createSVG() {
-var existing = document.getElementById('navMorphClipDefs');
-if (existing) existing.remove();
+  var existing = document.getElementById('navMorphClipDefs');
+  if (existing) existing.remove();
 
-var ns = 'http://www.w3.org/2000/svg';
-var svg = document.createElementNS(ns, 'svg');
-svg.id = 'navMorphClipDefs';
-svg.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
+  var ns = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(ns, 'svg');
+  svg.id = 'navMorphClipDefs';
+  svg.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:hidden;pointer-events:none;';
 
-var defs = document.createElementNS(ns, 'defs');
-var clipPath = document.createElementNS(ns, 'clipPath');
-clipPath.id = 'navMorphClip';
-var path = document.createElementNS(ns, 'path');
-path.id = 'navMorphPath';
-clipPath.appendChild(path);
-defs.appendChild(clipPath);
-svg.appendChild(defs);
-document.body.appendChild(svg);
+  var defs = document.createElementNS(ns, 'defs');
+  var clipPath = document.createElementNS(ns, 'clipPath');
+  clipPath.id = 'navMorphClip';
+  var path = document.createElementNS(ns, 'path');
+  path.id = 'navMorphPath';
+  clipPath.appendChild(path);
+  defs.appendChild(clipPath);
+  svg.appendChild(defs);
+  document.body.appendChild(svg);
 
-var styleEl = document.createElement('style');
-styleEl.id = 'navMorphStyle';
-styleEl.textContent = '.bottom-nav::before { clip-path: url(#navMorphClip); will-change: clip-path; }';
-document.head.appendChild(styleEl);
+  // Fix 3: clip the nav itself, not ::before
+  var styleEl = document.createElement('style');
+  styleEl.id = 'navMorphStyle';
+  styleEl.textContent = '.bottom-nav--expanded { clip-path: url(#navMorphClip); }';
+  document.head.appendChild(styleEl);
 
-return path;
+  return path;
 }
 
 var morphPath = createSVG();
 
 function updateClipPath(bowDepth) {
-var vw = window.innerWidth;
-var totalH = 110;
-var curveH = 4;
-var cx = vw / 2;
-var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
-morphPath.setAttribute('d', d);
+  var vw = window.innerWidth;
+  var totalH = 110;
+  var curveH = 4;
+  var cx = vw / 2;
+  var d = 'M 0,' + curveH + ' Q ' + cx + ',' + (curveH - bowDepth) + ' ' + vw + ',' + curveH + ' L ' + vw + ',' + totalH + ' L 0,' + totalH + ' Z';
+  morphPath.setAttribute('d', d);
 }
 
 // ── State machine ──
@@ -723,126 +724,123 @@ function easeInQuad(t) { return t * t; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function animateMorph(fromBow, toBow, duration, onComplete) {
-if (reducedMotion) {
-  updateClipPath(toBow);
-  if (onComplete) onComplete();
-  return;
-}
-var start = null;
-function frame(ts) {
-  if (!start) start = ts;
-  var elapsed = ts - start;
-  var t = Math.min(elapsed / duration, 1);
-  var eased = t < 0.5 ? easeOutQuad(t * 2) / 2 : 0.5 + easeInQuad((t - 0.5) * 2) / 2;
-  var current = lerp(fromBow, toBow, eased);
-  updateClipPath(current);
-  if (t < 1) {
-    rAF = requestAnimationFrame(frame);
-  } else {
+  if (reducedMotion) {
     updateClipPath(toBow);
     if (onComplete) onComplete();
+    return;
   }
-}
-rAF = requestAnimationFrame(frame);
+  var start = null;
+  function frame(ts) {
+    if (!start) start = ts;
+    var elapsed = ts - start;
+    var t = Math.min(elapsed / duration, 1);
+    var eased = t < 0.5 ? easeOutQuad(t * 2) / 2 : 0.5 + easeInQuad((t - 0.5) * 2) / 2;
+    var current = lerp(fromBow, toBow, eased);
+    updateClipPath(current);
+    if (t < 1) {
+      rAF = requestAnimationFrame(frame);
+    } else {
+      updateClipPath(toBow);
+      if (onComplete) onComplete();
+    }
+  }
+  rAF = requestAnimationFrame(frame);
 }
 
 function cancelAnim() {
-if (rAF) { cancelAnimationFrame(rAF); rAF = null; }
+  if (rAF) { cancelAnimationFrame(rAF); rAF = null; }
 }
 
 function expand() {
-if (isExpanded) return;
-isExpanded = true;
-nav.classList.add('bottom-nav--expanded');
-if (!reducedMotion) {
-  buyAnchor.className = 'buy-anchor--dissolving';
-}
-animateMorph(4, 18, 380, function() {
-  animateMorph(18, 28, 100, function() {
-    animateMorph(28, 18, 120, function() {});
+  if (isExpanded) return;
+  isExpanded = true;
+  nav.classList.add('bottom-nav--expanded');
+  if (!reducedMotion) {
+    buyAnchor.className = 'buy-anchor--dissolving';
+  }
+  animateMorph(4, 18, 380, function() {
+    animateMorph(18, 28, 100, function() {
+      animateMorph(28, 18, 120, function() {});
+    });
   });
-});
 }
 
 function collapse() {
-if (!isExpanded) return;
-isExpanded = false;
-nav.classList.remove('bottom-nav--expanded');
-if (!reducedMotion) {
-  buyAnchor.className = 'buy-anchor--resolidifying';
-}
-animateMorph(18, -10, 180, function() {
-  setTimeout(function() {
-    animateMorph(-10, 4, 200, function() {
-      if (!reducedMotion) {
-        buyAnchor.className = 'buy-anchor--solid';
-      }
-      updateClipPath(4);
-    });
-  }, 80);
-});
-}
-
-// ── Scroll-check function (works on ALL browsers) ──
-function checkScroll() {
-var anchorRect = buyAnchor.getBoundingClientRect();
-var navRect = nav.getBoundingClientRect();
-// Anchor bottom is above nav top → merge
-if (anchorRect.bottom < navRect.top + 10) {
-  expand();
-} else {
-  collapse();
-}
-}
-
-// ── Primary: IntersectionObserver (best when it works) ──
-try {
-var observer = new IntersectionObserver(function(entries) {
-  entries.forEach(function(entry) {
-    if (entry.target !== buyAnchor) return;
-    // Only use observer when it fires reliably — treat isIntersecting flip as hint
-    if (!entry.isIntersecting) {
-      expand();
-    } else {
-      collapse();
-    }
+  if (!isExpanded) return;
+  isExpanded = false;
+  nav.classList.remove('bottom-nav--expanded');
+  if (!reducedMotion) {
+    buyAnchor.className = 'buy-anchor--resolidifying';
+  }
+  animateMorph(18, -10, 180, function() {
+    setTimeout(function() {
+      animateMorph(-10, 4, 200, function() {
+        if (!reducedMotion) {
+          buyAnchor.className = 'buy-anchor--solid';
+        }
+        updateClipPath(4);
+      });
+    }, 80);
   });
-}, { threshold: [0], rootMargin: '0px 0px -60px 0px' });
-observer.observe(buyAnchor);
-} catch(e) {
-// Observer not available, fall through to scroll
 }
 
-// ── Secondary: scroll event fallback (catches Android where observer is unreliable) ──
+// ── Scroll-check function — uses buyButtonsRow (shallow), not buyAnchor (deep) ──
+function checkScroll() {
+  var rect = buyButtonsRow.getBoundingClientRect();
+  var navRect = nav.getBoundingClientRect();
+  if (rect.bottom < navRect.top + 10) {
+    expand();
+  } else {
+    collapse();
+  }
+}
+
+// Fix 2: IntersectionObserver with direction guard
+var lastScrollY = window.scrollY;
+try {
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.target !== buyButtonsRow) return;
+      var scrollingDown = window.scrollY > lastScrollY;
+      lastScrollY = window.scrollY;
+      if (!entry.isIntersecting && scrollingDown) {
+        expand();
+      } else if (entry.isIntersecting && !scrollingDown) {
+        collapse();
+      }
+    });
+  }, { threshold: [0], rootMargin: '0px 0px -' + (nav.offsetHeight + 10) + 'px 0px' });
+  observer.observe(buyButtonsRow);
+} catch(e) {}
+
+// ── Scroll event fallback ──
 var scrollTick = null;
 window.addEventListener('scroll', function() {
-if (scrollTick) cancelAnimationFrame(scrollTick);
-scrollTick = requestAnimationFrame(checkScroll);
+  if (scrollTick) cancelAnimationFrame(scrollTick);
+  scrollTick = requestAnimationFrame(checkScroll);
 }, { passive: true });
 
-// Also check on resize (orientation change, keyboard open)
 window.addEventListener('resize', function() {
-if (scrollTick) cancelAnimationFrame(scrollTick);
-scrollTick = requestAnimationFrame(checkScroll);
+  if (scrollTick) cancelAnimationFrame(scrollTick);
+  scrollTick = requestAnimationFrame(checkScroll);
 }, { passive: true });
 
-// ── Back-to-top → scroll to anchor ──
+// ── Back-to-top → scroll to buyButtonsRow ──
 if (backToTop) {
-backToTop.onclick = function(e) {
-  e.preventDefault();
-  buyAnchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
-};
+  backToTop.onclick = function(e) {
+    e.preventDefault();
+    buyButtonsRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 }
 
 // ── Initial state ──
 updateClipPath(4);
-// Also check on load after layout settles
 setTimeout(checkScroll, 300);
 
 // ── Cleanup ──
 window.addEventListener('beforeunload', function() {
-cancelAnim();
-try { if (observer) observer.disconnect(); } catch(e) {}
+  cancelAnim();
+  try { if (observer) observer.disconnect(); } catch(e) {}
 });
 })();
 </script>

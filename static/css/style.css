@@ -4049,6 +4049,7 @@ animation: heartPop 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
     .bottom-nav--expanded {
       padding-top: 56px !important;
       z-index: 81;
+      overflow: visible;
     }
     .bottom-nav--expanded::before {
       backdrop-filter: blur(20px) saturate(1.8);
