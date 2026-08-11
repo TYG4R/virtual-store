@@ -34,6 +34,14 @@ from helpers import (
 )
 import razorpay_client as rzp
 import invoicing
+from phase2_services import (
+    mark_payment_captured,
+    record_webhook_event,
+    mark_webhook_event_processed,
+    issue_entitlement,
+    record_download_audit,
+    transition_order_state,
+)
 from admin_api import admin_api
 from storefront_service import get_primary_image_map
 
@@ -2349,7 +2357,8 @@ def api_verify_payment():
 
     if not valid:
         conn.execute(
-            "UPDATE orders SET status = 'failed' WHERE id = ?", (order["id"],)
+            "UPDATE orders SET status = 'failed', payment_state = 'failed' WHERE id = ? AND payment_state = 'pending'",
+            (order["id"],),
         )
         conn.commit()
         conn.close()
@@ -2382,6 +2391,11 @@ def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", 
     if current_status in {"paid", "delivered"}:
         return order["delivery_message"] if order["delivery_message"] else None
 
+    # Capture the payment and move the order state exactly once before any
+    # coupon, stock, entitlement, token, or notification side effects.
+    if not mark_payment_captured(conn, order["id"]):
+        return None
+
     coupon_code = (order["coupon_code"] or "").strip().upper()
     if coupon_code:
         try:
@@ -2406,6 +2420,13 @@ def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", 
     product_ids = [it["product_id"] for it in (order_items or []) if it["product_id"]]
     if not product_ids and order["product_id"]:
         product_ids = [order["product_id"]]
+    for product_id in sorted(set(product_ids)):
+        issue_entitlement(
+            conn,
+            order["id"],
+            product_id,
+            customer_id=order["customer_id"] if "customer_id" in order.keys() else None,
+        )
     file_tokens = generate_download_tokens(conn, order["id"], product_ids)
     token_lines = [
         f"📎 {item['filename']}: {url_for('download_product', token=item['token'], _external=True)}"
@@ -2437,6 +2458,7 @@ def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", 
             "UPDATE orders SET status = 'delivered', paid_at = COALESCE(paid_at, ?), payment_mode = ?, razorpay_payment_id = COALESCE(?, razorpay_payment_id), razorpay_signature = COALESCE(?, razorpay_signature) WHERE id = ?",
             (paid_at, payment_mode, razorpay_payment_id, razorpay_signature, order["id"]),
         )
+        transition_order_state(conn, order["id"], "delivered", expected_states={"paid"})
 
     # Deduct stock for each item — atomic with built-in oversell guard
     for item in (order_items or []):
@@ -3331,20 +3353,32 @@ def download_product(token):
     from datetime import datetime, timezone
     expires = datetime.fromisoformat(row["expires_at"])
     if expires < datetime.now(timezone.utc):
-        conn.close()
+        try:
+            record_download_audit(conn, download_token=token, success=False, failure_reason="expired", ip_address=request.remote_addr or "", user_agent=request.headers.get("User-Agent", ""))
+            conn.commit()
+        finally:
+            conn.close()
         return abort(410)
     # Multi-download: decrement remaining count instead of one-shot used flag.
     # Existing tokens (migrated with downloads_remaining=1) get one download,
     # new tokens get MAX_DOWNLOADS (5) re-downloads within the expiry window.
     remaining = row["downloads_remaining"]
     if remaining <= 0:
-        conn.close()
+        try:
+            record_download_audit(conn, order_id=row["order_id"], download_token=row["token"], product_id=row["product_id"], success=False, failure_reason="exhausted", ip_address=request.remote_addr or "", user_agent=request.headers.get("User-Agent", ""))
+            conn.commit()
+        finally:
+            conn.close()
         return abort(410)
     file_path = product_file_path(row["file_path"])
     # Validate the private path and file before consuming a download. A stale
     # token must not lose one of the customer's remaining downloads.
     if not file_path or not os.path.isfile(file_path):
-        conn.close()
+        try:
+            record_download_audit(conn, order_id=row["order_id"], download_token=row["token"], product_id=row["product_id"], success=False, failure_reason="missing_file", ip_address=request.remote_addr or "", user_agent=request.headers.get("User-Agent", ""))
+            conn.commit()
+        finally:
+            conn.close()
         return abort(404)
     updated = conn.execute(
         """UPDATE download_tokens
@@ -3353,10 +3387,25 @@ def download_product(token):
         (row["id"],),
     )
     if updated.rowcount != 1:
-        conn.close()
+        try:
+            record_download_audit(conn, order_id=row["order_id"], download_token=row["token"], product_id=row["product_id"], success=False, failure_reason="race_or_exhausted", ip_address=request.remote_addr or "", user_agent=request.headers.get("User-Agent", ""))
+            conn.commit()
+        finally:
+            conn.close()
         return abort(410)
-    conn.commit()
-    conn.close()
+    try:
+        record_download_audit(
+            conn,
+            order_id=row["order_id"],
+            download_token=row["token"],
+            product_id=row["product_id"],
+            success=True,
+            ip_address=request.remote_addr or "",
+            user_agent=request.headers.get("User-Agent", ""),
+        )
+        conn.commit()
+    finally:
+        conn.close()
     return send_file(file_path, as_attachment=True, download_name=row["filename"])
 
 
@@ -5745,8 +5794,25 @@ def razorpay_webhook():
         return jsonify({"error": "Invalid JSON"}), 400
 
     event = payload.get("event", "")
+    event_id = request.headers.get("X-Razorpay-Event-ID", "").strip()
+    conn = db.get_db()
+    if event_id:
+        try:
+            is_new = record_webhook_event(conn, event_id, event, payload)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            conn.close()
+            return jsonify({"error": "Webhook persistence failed"}), 503
+        if not is_new:
+            conn.close()
+            return jsonify({"status": "duplicate"}), 200
     # Only handle payment.captured — other events are ignored (but acknowledged)
     if event != "payment.captured":
+        if event_id:
+            mark_webhook_event_processed(conn, event_id, status="ignored")
+            conn.commit()
+        conn.close()
         return jsonify({"status": "ignored"}), 200
 
     payment = payload.get("payload", {}).get("payment", {}).get("entity", {})
@@ -5754,19 +5820,28 @@ def razorpay_webhook():
     razorpay_payment_id = payment.get("id", "")
 
     if not razorpay_order_id:
+        if event_id:
+            mark_webhook_event_processed(conn, event_id, status="ignored", error="missing order_id")
+            conn.commit()
+        conn.close()
         return jsonify({"status": "no order_id"}), 200
 
-    conn = db.get_db()
     order = conn.execute(
         "SELECT * FROM orders WHERE razorpay_order_id = ?", (razorpay_order_id,)
     ).fetchone()
 
     if not order:
+        if event_id:
+            mark_webhook_event_processed(conn, event_id, status="ignored", error="order not found")
+            conn.commit()
         conn.close()
         return jsonify({"status": "order not found"}), 200
 
     # Idempotency: if already paid/delivered, don't re-run side effects
     if order["status"] in ("paid", "delivered"):
+        if event_id:
+            mark_webhook_event_processed(conn, event_id, status="processed")
+            conn.commit()
         conn.close()
         return jsonify({"status": "already confirmed"}), 200
 
@@ -5775,8 +5850,22 @@ def razorpay_webhook():
     order_items = conn.execute(
         "SELECT * FROM order_items WHERE order_id = ?", (order["id"],)
     ).fetchall()
-    _confirm_order_payment(conn, order, order_items, payment_mode="gateway", razorpay_payment_id=razorpay_payment_id, razorpay_signature="")
-
+    try:
+        _confirm_order_payment(conn, order, order_items, payment_mode="gateway", razorpay_payment_id=razorpay_payment_id, razorpay_signature="")
+        if event_id:
+            mark_webhook_event_processed(conn, event_id, status="processed")
+        conn.commit()
+    except Exception as exc:
+        conn.rollback()
+        if event_id:
+            try:
+                mark_webhook_event_processed(conn, event_id, status="failed", error=str(exc)[:500])
+                conn.commit()
+            except Exception:
+                conn.rollback()
+        conn.close()
+        return jsonify({"error": "Webhook processing failed"}), 500
+    conn.close()
     return jsonify({"status": "confirmed"}), 200
 
 

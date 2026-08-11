@@ -46,6 +46,19 @@ _SLOW_QUERY_MS = int(os.environ.get("DB_SLOW_QUERY_MS", "250"))
 _MIGRATION_TABLE = "schema_migrations"
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS performance_metrics (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    metric_type TEXT NOT NULL,
+    metric_name TEXT NOT NULL,
+    value      REAL NOT NULL,
+    page_path  TEXT,
+    user_agent TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_perf_type ON performance_metrics(metric_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_perf_name ON performance_metrics(metric_name, created_at);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -114,7 +127,9 @@ CREATE TABLE IF NOT EXISTS orders (
     delivered_at       TEXT,
     refunded_amount    INTEGER NOT NULL DEFAULT 0,
     refunded_at        TEXT,
-    razorpay_refund_id TEXT
+    razorpay_refund_id TEXT,
+    payment_state      TEXT NOT NULL DEFAULT 'pending',
+    order_state        TEXT NOT NULL DEFAULT 'created'
 );
 
 CREATE TABLE IF NOT EXISTS admin_users (
@@ -253,6 +268,10 @@ MIGRATIONS = [
     "ALTER TABLE orders ADD COLUMN customer_id INTEGER REFERENCES customers(id)",
     "ALTER TABLE orders ADD COLUMN auto_delivered INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE orders ADD COLUMN payment_mode TEXT NOT NULL DEFAULT 'gateway'",
+    "ALTER TABLE orders ADD COLUMN payment_state TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE orders ADD COLUMN order_state TEXT NOT NULL DEFAULT 'created'",
+    "UPDATE orders SET payment_state = CASE WHEN status IN ('paid', 'delivered') THEN 'captured' WHEN status = 'failed' THEN 'failed' WHEN status = 'cancelled' THEN 'failed' ELSE 'pending' END WHERE payment_state IS NULL OR payment_state = '' OR payment_state = 'pending'",
+    "UPDATE orders SET order_state = CASE WHEN status = 'paid' THEN 'paid' WHEN status = 'delivered' THEN 'delivered' WHEN status = 'cancelled' THEN 'cancelled' WHEN status = 'refunded' THEN 'refunded' ELSE 'created' END WHERE order_state IS NULL OR order_state = '' OR order_state = 'created'",
     # Make firebase_uid nullable in existing databases (for self-contained OTP auth)
     # SQLite doesn't support ALTER COLUMN, so this is handled gracefully —
     # the schema change only applies to fresh databases, existing ones still
@@ -329,6 +348,78 @@ SCHEMA_EXTRA = """
       filename   TEXT NOT NULL,
       expires_at TEXT NOT NULL,
       used       INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS order_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL,
+      provider_order_id TEXT,
+      provider_payment_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      amount INTEGER,
+      currency TEXT NOT NULL DEFAULT 'INR',
+      captured_at TEXT,
+      metadata_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS payment_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      event_type TEXT NOT NULL DEFAULT '',
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      signature TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'received',
+      error TEXT,
+      received_at TEXT NOT NULL,
+      processed_at TEXT,
+      UNIQUE(provider, event_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS outbox_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      idempotency_key TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 5,
+      available_at TEXT NOT NULL,
+      locked_at TEXT,
+      locked_by TEXT,
+      last_error TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS entitlements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      customer_id INTEGER REFERENCES customers(id),
+      product_id INTEGER NOT NULL REFERENCES products(id),
+      status TEXT NOT NULL DEFAULT 'active',
+      metadata TEXT NOT NULL DEFAULT '{}',
+      issued_at TEXT NOT NULL,
+      revoked_at TEXT,
+      revoke_reason TEXT NOT NULL DEFAULT '',
+      UNIQUE(order_id, product_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS download_audit (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+      entitlement_id INTEGER REFERENCES entitlements(id) ON DELETE SET NULL,
+      download_token TEXT,
+      customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+      success INTEGER NOT NULL DEFAULT 1,
+      ip_address TEXT NOT NULL DEFAULT '',
+      user_agent TEXT NOT NULL DEFAULT '',
+      failure_reason TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
   );
 
@@ -496,6 +587,14 @@ INDEXES = [
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_abandoned_carts_session_status ON abandoned_carts(session_key, status)",
     "CREATE INDEX IF NOT EXISTS idx_products_views ON products(views DESC)",
     "CREATE INDEX IF NOT EXISTS idx_orders_email_status ON orders(customer_email, status)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_events_provider_event ON payment_events(provider, event_id)",
+    "CREATE INDEX IF NOT EXISTS idx_payment_events_status_received ON payment_events(status, received_at)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_outbox_jobs_idempotency ON outbox_jobs(idempotency_key)",
+    "CREATE INDEX IF NOT EXISTS idx_outbox_jobs_claim ON outbox_jobs(status, available_at, id)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_entitlements_order_product ON entitlements(order_id, product_id)",
+    "CREATE INDEX IF NOT EXISTS idx_entitlements_customer_status ON entitlements(customer_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_download_audit_order_created ON download_audit(order_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_download_audit_product_created ON download_audit(product_id, created_at)",
 ]
 
 
