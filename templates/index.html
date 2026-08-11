@@ -12,7 +12,7 @@
     <p>{{ settings.hero_subtitle }}</p>
     <div class="hero__cta-group">
       <a href="#products" class="btn">Explore the Catalogue</a>
-      {% if not customer_logged_in %}
+      {% if not customer_logged_in and customer_auth_enabled %}
       <a href="#" onclick="openAuthModal(); return false;" class="btn btn--outline hero__cta-secondary" data-auth-signed-out>Join with Phone</a>
       {% endif %}
     </div>
@@ -35,7 +35,7 @@
 <div class="feature-strip">
   <div class="feature-strip__item">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-    {% if test_checkout_mode %}Testing Mode Active{% elif razorpay_configured %}Secure Razorpay Checkout{% else %}Checkout Temporarily Unavailable{% endif %}
+    {% if not checkout_available %}Checkout Temporarily Unavailable{% elif test_checkout_mode %}Testing Mode Active{% elif razorpay_configured %}Secure Razorpay Checkout{% else %}Checkout Temporarily Unavailable{% endif %}
   </div>
   <div class="feature-strip__item">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -312,7 +312,7 @@
   } catch(e) {}
 })();
 </script>
-{% if not customer_logged_in %}
+{% if not customer_logged_in and customer_auth_enabled %}
 <div class="signup-prompt" id="signupPrompt" data-auth-signed-out>
   <button class="signup-prompt__close" onclick="dismissSignupPrompt()" aria-label="Close">&times;</button>
   <span class="signup-prompt__text"><strong>Unlock member perks.</strong> Sign in with your phone for instant checkout and exclusive deals.</span>

@@ -71,6 +71,25 @@ def _invalidate_frontend_cache(*, catalog=False, settings=False):
         pass
 
 
+def _customer_email_notifications_enabled():
+    """Respect the store's automatic customer-email setting without importing app."""
+    settings = dict(db.DEFAULT_SETTINGS)
+    conn = None
+    try:
+        conn = db.get_db()
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        settings.update({row["key"]: row["value"] for row in rows})
+    except Exception:
+        pass
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    return email_enabled() and str(settings.get("auto_email_enabled", "true")).lower() != "false"
+
+
 # ============================================================= AUTH
 
 @admin_api.route("/login", methods=["POST"])
@@ -345,7 +364,7 @@ def order_deliver(order_id):
     updated = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
     conn.close()
 
-    if email_enabled():
+    if _customer_email_notifications_enabled():
         item_line = order["product_name"] if not order_items else ", ".join(
             f"{it['product_name']} x{it['quantity']}" for it in order_items
         )
@@ -358,7 +377,7 @@ def order_deliver(order_id):
             f"Order reference: {order['order_ref']}\n\nThank you for shopping with us.",
         )
 
-    return ok({"order": dict(updated), "email_sent": email_enabled()})
+    return ok({"order": dict(updated), "email_sent": _customer_email_notifications_enabled()})
 
 
 @admin_api.route("/orders/<int:order_id>/cancel", methods=["POST"])

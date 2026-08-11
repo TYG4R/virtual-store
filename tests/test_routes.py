@@ -29,8 +29,10 @@ import database as db
 
 
 def _seed_test_data():
-    """Seed the app's in-memory DB with test products, settings, and admin user."""
+    """Seed the app's test DB with products, settings, and an admin user."""
     import database as db_mod
+    db_mod._db_initialized = False
+    db_mod.init_db_if_needed()
     conn = db_mod.get_db()
     # Only seed if no products exist yet
     existing = conn.execute("SELECT COUNT(*) AS c FROM products").fetchone()["c"]

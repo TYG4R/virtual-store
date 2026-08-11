@@ -76,7 +76,7 @@
 
         <div class="divider"></div>
 
-        {% if not customer_logged_in %}
+        {% if not customer_logged_in and customer_auth_enabled %}
         <p class="auth-inline-hint">
           <a href="#" onclick="openAuthModal(); return false;">Sign in with your phone</a> for instant checkout, or continue as a guest below.
         </p>

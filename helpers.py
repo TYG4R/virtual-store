@@ -788,34 +788,73 @@ def allowed_product_file(filename):
 
 
 def save_product_file(file_storage):
-    """Save an uploaded product file to the product_files directory.
-    Returns the relative path (e.g. 'static/product_files/abc123.pdf')."""
+    """Save an uploaded product file outside Flask's public static tree.
+    Returns the configured storage path (relative to the project when the
+    default ``instance/product_files`` setting is used)."""
     import uuid
     ext = file_storage.filename.rsplit(".", 1)[1].lower() if "." in file_storage.filename else ""
     safe_name = f"{uuid.uuid4().hex}.{ext}" if ext else uuid.uuid4().hex
     rel_path = os.path.join(config.PRODUCT_UPLOAD_FOLDER, safe_name)
-    abspath = os.path.join(os.getcwd(), rel_path)
+    abspath = rel_path if os.path.isabs(rel_path) else os.path.join(os.getcwd(), rel_path)
     os.makedirs(os.path.dirname(abspath), exist_ok=True)
     file_storage.save(abspath)
     return rel_path
 
 
+def product_file_path(filename):
+    """Resolve a stored product filename to a private filesystem path.
+
+    Product files are only valid below PRODUCT_UPLOAD_FOLDER. This keeps a
+    malformed database row from turning the protected download/admin routes
+    into arbitrary file readers. Legacy static/product_files paths are not
+    accepted here; init_db migrates those rows before they are used.
+    """
+    if not filename:
+        return None
+    root = os.path.realpath(os.path.abspath(config.PRODUCT_UPLOAD_FOLDER))
+    candidate = os.path.realpath(
+        filename if os.path.isabs(filename) else os.path.join(os.getcwd(), filename)
+    )
+    try:
+        if os.path.commonpath((root, candidate)) != root:
+            return None
+    except ValueError:
+        return None
+    return candidate
+
+
 def generate_download_tokens(conn, order_id, product_ids, expiry_hours=72):
-    """Generate secure single-use download tokens for each product file
-    associated with the given product IDs. Returns a list of dicts with
-    token / filename / original_name."""
+    """Generate secure download tokens for each product file in an order.
+
+    The operation is idempotent for an order/file pair, which avoids duplicate
+    links if a payment provider retries a confirmed-payment callback.
+    Returns a list of dicts with token / filename / original_name.
+    """
     import secrets
     from datetime import datetime, timedelta, timezone
     tokens = []
     expires_at = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
     now = datetime.now(timezone.utc).isoformat()
     from config import MAX_DOWNLOADS
-    for pid in product_ids:
+    for pid in dict.fromkeys(product_ids):
         files = conn.execute(
             "SELECT id, filename, original_name FROM product_files WHERE product_id = ?",
             (pid,),
         ).fetchall()
         for pf in files:
+            existing = conn.execute(
+                """SELECT token, filename, file_path FROM download_tokens
+                   WHERE order_id = ? AND product_id = ? AND file_path = ?
+                   ORDER BY id DESC LIMIT 1""",
+                (order_id, pid, pf["filename"]),
+            ).fetchone()
+            if existing:
+                tokens.append({
+                    "token": existing["token"],
+                    "filename": existing["filename"],
+                    "file_path": existing["file_path"],
+                })
+                continue
             token_str = secrets.token_urlsafe(32)
             conn.execute(
                 """INSERT INTO download_tokens (order_id, product_id, token, file_path,
@@ -829,6 +868,78 @@ def generate_download_tokens(conn, order_id, product_ids, expiry_hours=72):
                 "file_path": pf["filename"],
             })
     return tokens
+
+
+def migrate_legacy_product_files(conn=None):
+    """Move legacy static/product_files assets into private product storage.
+
+    This is intentionally additive and idempotent: existing database rows are
+    updated only after the file is present at the private destination. Rows
+    that point elsewhere are left untouched for manual review. A request-owned
+    connection may be supplied so the Flask request DB is not closed here.
+    """
+    legacy_root = os.path.abspath(os.path.join(os.getcwd(), "static", "product_files"))
+    private_root = os.path.abspath(config.PRODUCT_UPLOAD_FOLDER)
+    if legacy_root == private_root or not os.path.isdir(legacy_root):
+        return 0
+    owns_conn = conn is None
+    conn = conn or db.get_db()
+    moved = 0
+    try:
+        rows = conn.execute(
+            "SELECT id, filename FROM product_files WHERE filename LIKE ?",
+            ("static/product_files/%",),
+        ).fetchall()
+        os.makedirs(private_root, exist_ok=True)
+        known_paths = set()
+        for row in rows:
+            old_path = os.path.abspath(os.path.join(os.getcwd(), row["filename"]))
+            try:
+                if os.path.commonpath((legacy_root, old_path)) != legacy_root:
+                    continue
+            except ValueError:
+                continue
+            basename = os.path.basename(old_path)
+            if not basename:
+                continue
+            known_paths.add(old_path)
+            new_path = os.path.join(private_root, basename)
+            if os.path.exists(old_path) and not os.path.exists(new_path):
+                os.replace(old_path, new_path)
+            elif os.path.exists(old_path) and os.path.isfile(new_path):
+                # Do not leave a duplicate public copy when a prior migration
+                # already populated the private destination.
+                try:
+                    os.remove(old_path)
+                except OSError:
+                    continue
+            if os.path.isfile(new_path):
+                new_rel_path = os.path.join(config.PRODUCT_UPLOAD_FOLDER, basename)
+                conn.execute(
+                    "UPDATE product_files SET filename = ? WHERE id = ?",
+                    (new_rel_path, row["id"]),
+                )
+                # Existing paid orders may already have token rows pointing at
+                # the legacy path; keep those entitlements usable after move.
+                conn.execute(
+                    "UPDATE download_tokens SET file_path = ? WHERE file_path = ?",
+                    (new_rel_path, row["filename"]),
+                )
+                moved += 1
+        # Move orphaned legacy assets too, so no product payload remains under
+        # Flask's public static tree even if its database row was deleted.
+        for name in os.listdir(legacy_root):
+            old_path = os.path.join(legacy_root, name)
+            if not os.path.isfile(old_path) or old_path in known_paths:
+                continue
+            new_path = os.path.join(private_root, name)
+            if not os.path.exists(new_path):
+                os.replace(old_path, new_path)
+        conn.commit()
+    finally:
+        if owns_conn:
+            conn.close()
+    return moved
 
 
 # ================================================================

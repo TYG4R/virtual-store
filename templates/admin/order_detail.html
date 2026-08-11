@@ -68,7 +68,7 @@
       <div style="margin-bottom:0.5rem;padding:0.5rem;border:1px dashed var(--grey-400);border-radius:8px;font-size:0.82rem;">
         <strong style="display:block;margin-bottom:0.3rem;">Product Files</strong>
         {% for f in product_files %}
-        {% set dl_url = url_for('admin_product_file_download', file_id=f.id, _external=True) %}
+        {% set dl_url = url_for('download_product', token=f.download_token, _external=True) if f.download_token else url_for('admin_product_file_download', file_id=f.id, _external=True) %}
         <div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.2rem;">
           <span style="flex:1;">📎 {{ f.original_name }}</span>
           <button type="button" class="btn btn--sm btn--outline" onclick="var i=document.getElementById('dlInput{{ f.id }}'); i.select(); i.setSelectionRange(0,99999); navigator.clipboard.writeText(i.value).then(function(){this.textContent='Copied!';setTimeout(function(){this.textContent='Copy'}.bind(this),2000)}.bind(this)); return false;">Copy</button>
@@ -150,7 +150,7 @@
   function fillDeliveryWithFileLinks() {
     var links = [];
     {% for f in product_files %}
-    {% set dl_url = url_for('admin_product_file_download', file_id=f.id, _external=True) %}
+    {% set dl_url = url_for('download_product', token=f.download_token, _external=True) if f.download_token else url_for('admin_product_file_download', file_id=f.id, _external=True) %}
     links.push('📎 {{ f.original_name }}: {{ dl_url }}');
     {% endfor %}
     var msg = document.getElementById('deliveryMessageInput');

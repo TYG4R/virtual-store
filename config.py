@@ -27,12 +27,32 @@ def _load_dotenv(path=".env"):
 _load_dotenv()
 
 # --- Core ---
+# Refuse values that are commonly copied from .env.example files or quick-start
+# guides. They are not safe session secrets, even if they technically work.
+_SECRET_KEY_PLACEHOLDERS = {
+    "please-change-this-to-a-long-random-string",
+    "change-me",
+    "change_this",
+    "changeme",
+    "your-secret-key",
+    "your-secret-key-here",
+    "secret",
+    "secret-key",
+    "default-secret-key",
+}
+_secret_key_env = os.environ.get("SECRET_KEY", "").strip()
+if _secret_key_env.lower() in _SECRET_KEY_PLACEHOLDERS:
+    raise RuntimeError(
+        "SECRET_KEY contains a known placeholder value. Set a unique random "
+        "SECRET_KEY before starting the application."
+    )
+
 # No hardcoded fallback here on purpose: a secret key baked into source code
 # (visible to anyone who can read this repo) defeats the point of a secret.
 # If you don't set SECRET_KEY yourself, a random one is generated at startup
 # instead — sessions just won't survive a restart until you set a real one.
-SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
-SECRET_KEY_WAS_GENERATED = "SECRET_KEY" not in os.environ
+SECRET_KEY = _secret_key_env or secrets.token_hex(32)
+SECRET_KEY_WAS_GENERATED = not bool(_secret_key_env)
 
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
@@ -53,7 +73,12 @@ DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 # --- Product file uploads (for auto-delivery download links) ---
-PRODUCT_UPLOAD_FOLDER = os.path.join("static", "product_files")
+# Product files must not live below static/, because Flask serves that tree
+# directly without download-token expiry or download-count checks. Keep this
+# on the persistent disk in production (Render mounts instance/).
+PRODUCT_UPLOAD_FOLDER = os.environ.get(
+    "PRODUCT_UPLOAD_FOLDER", os.path.join("instance", "product_files")
+)
 ALLOWED_PRODUCT_EXTENSIONS = {"pdf", "zip", "txt", "csv", "json", "xml", "doc", "docx", "xlsx", "jpg", "jpeg", "png", "gif", "mp3", "mp4", "epub", "mobi"}
 MAX_PRODUCT_FILE_MB = int(os.environ.get("MAX_PRODUCT_FILE_MB", "100"))
 

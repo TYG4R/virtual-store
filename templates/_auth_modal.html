@@ -1,6 +1,6 @@
-{# Self-contained phone/OTP sign-in modal — no Firebase needed.
-   Works entirely with our own backend: send code -> verify -> create account.
+{# Self-contained phone/OTP sign-in modal.
    Opens from the nav "Sign In" link, the mobile menu, or checkout. #}
+{% if customer_auth_enabled %}
 <div class="auth-modal" id="authModal" aria-hidden="true">
   <div class="auth-modal__backdrop" onclick="closeAuthModal()"></div>
   <div class="auth-modal__panel" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -237,3 +237,4 @@
     };
   })();
   </script>
+{% endif %}

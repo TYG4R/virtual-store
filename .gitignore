@@ -4,6 +4,8 @@ instance/INITIAL_ADMIN_PASSWORD.txt
 instance/.persistence_check
 static/uploads/*
 !static/uploads/.gitkeep
+# Private digital product payloads are stored outside Flask's public static tree.
+instance/product_files/
 __pycache__/
 *.pyc
 .DS_Store

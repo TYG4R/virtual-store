@@ -108,8 +108,8 @@ def generate_invoice(order, order_items, product_map, settings) -> bytes:
     pdf.set_xy(page_w // 2 + 10, pdf.get_y() - (16 if gstin else 11 if biz_addr else 5))
     meta_lines = [
         f"Order: {order['order_ref']}",
-        f"Date: {order.get('paid_at') or order['created_at']}",
-        f"Payment ID: {order.get('razorpay_payment_id', 'N/A')}",
+        f"Date: {order['paid_at'] or order['created_at']}",
+        f"Payment ID: {order['razorpay_payment_id'] or 'N/A'}",
     ]
     for line in meta_lines:
         pdf.cell(page_w // 2, 5, line, align="R", new_x="LMARGIN", new_y="NEXT")
@@ -125,10 +125,10 @@ def generate_invoice(order, order_items, product_map, settings) -> bytes:
 
     pdf.set_font("FreeSans", "", 9)
     pdf.set_text_color(*INV_GREY)
-    pdf.cell(page_w, 5, order.get("customer_name", "N/A"), new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(page_w, 5, order.get("customer_email", ""), new_x="LMARGIN", new_y="NEXT")
-    if order.get("customer_phone"):
-        pdf.cell(page_w, 5, order.get("customer_phone", ""), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(page_w, 5, order["customer_name"] or "N/A", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(page_w, 5, order["customer_email"] or "", new_x="LMARGIN", new_y="NEXT")
+    if order["customer_phone"]:
+        pdf.cell(page_w, 5, order["customer_phone"], new_x="LMARGIN", new_y="NEXT")
 
     # ── Line items table ──
     pdf.ln(5)
@@ -150,8 +150,8 @@ def generate_invoice(order, order_items, product_map, settings) -> bytes:
     for item in order_items:
         pid = item["product_id"]
         pname = product_map.get(pid, {}).get("name", f"Product #{pid}")
-        qty = item.get("quantity", 1)
-        unit_price = item.get("price", 0)
+        qty = item["quantity"]
+        unit_price = item["unit_price"]
         line_total = unit_price * qty
         total += line_total
 
@@ -162,7 +162,7 @@ def generate_invoice(order, order_items, product_map, settings) -> bytes:
         pdf.ln()
 
     # Totals row
-    discount = order.get("discount_amount", 0)
+    discount = order["discount_amount"] or 0
     net = total - discount
 
     pdf.set_font("FreeSans", "B", 9)
@@ -174,7 +174,7 @@ def generate_invoice(order, order_items, product_map, settings) -> bytes:
     if discount:
         pdf.set_font("FreeSans", "", 9)
         pdf.set_text_color(*INV_GREY)
-        pdf.cell(col_w[0] + col_w[1] + col_w[2], 7, f"Discount ({order.get('coupon_code', 'N/A')})", border=1, align="R")
+        pdf.cell(col_w[0] + col_w[1] + col_w[2], 7, f"Discount ({order['coupon_code'] or 'N/A'})", border=1, align="R")
         pdf.cell(col_w[3], 7, f"-{_format_rupee(discount)}", border=1, align="C")
         pdf.ln()
 
@@ -188,7 +188,7 @@ def generate_invoice(order, order_items, product_map, settings) -> bytes:
     pdf.ln(5)
     pdf.set_font("FreeSans", "", 8)
     pdf.set_text_color(*INV_GREY)
-    pdf.cell(0, 5, f"Payment: Razorpay ({order.get('razorpay_payment_id', 'N/A')})", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, f"Payment: Razorpay ({order['razorpay_payment_id'] or 'N/A'})", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 5, f"Status: {order['status'].title()}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
     pdf.cell(0, 5, "Thank you for your purchase!", new_x="LMARGIN", new_y="NEXT")

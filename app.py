@@ -26,7 +26,8 @@ from helpers import (
     generate_otp_code, store_otp, verify_otp_code,
     notify_admins_new_order, webpush_notify_admins_new_order,
     whatsapp_enabled, send_whatsapp, twilio_enabled, send_sms,
-    allowed_product_file, save_product_file,
+    allowed_product_file, save_product_file, product_file_path,
+    generate_download_tokens, migrate_legacy_product_files,
     customer_login_required,
     track_cart_add, track_cart_contact,
     has_permission,
@@ -303,6 +304,8 @@ def simple_markdown_filter(text):
     return Markup(html)
 
 
+_legacy_product_files_migrated = False
+
 # --- Startup check: warn if the database directory might be on ephemeral storage ---
 # On platforms like Render, the default filesystem is wiped on every deploy/restart.
 # If instance/ (where the SQLite DB lives) isn't on a persistent disk, all data is
@@ -366,14 +369,22 @@ def make_session_permanent():
 
 @app.before_request
 def _ensure_db_initialized():
-    """Initialize the database on the first request (not at import time).
-    This lets gunicorn boot and open the port immediately even if the
-    Turso/libsql connection is slow — the DB connects on first traffic.
-    Health checks are excluded so Render can verify the worker is up
-    without depending on the database."""
+    """Initialize the database and private product storage on first request."""
+    global _legacy_product_files_migrated
     if request.path == "/healthz":
         return
     db.init_db_if_needed()
+    if not _legacy_product_files_migrated:
+        try:
+            migrate_legacy_product_files(db.get_db())
+        except Exception:
+            _startup_logger.exception("Legacy product-file migration failed")
+        else:
+            _legacy_product_files_migrated = True
+    # Never allow the old public URL prefix to serve product payloads, even if
+    # a deployment has not yet completed the legacy-file migration.
+    if request.path.startswith("/static/product_files/"):
+        abort(404)
 
 
 @app.before_request
@@ -583,6 +594,16 @@ def inject_globals():
             return False
         return "*" in admin_perms or perm in admin_perms
 
+    _firebase_enabled = firebase_auth_enabled()
+    _google_enabled = bool(config.GOOGLE_CLIENT_ID)
+    _backend_otp_enabled = bool(
+        config.OTP_DEV_MODE or (
+            config.TWILIO_ACCOUNT_SID and
+            config.TWILIO_AUTH_TOKEN and
+            config.TWILIO_FROM_NUMBER
+        )
+    )
+
     return {
         "csrf_token": get_csrf_token,
         "cart_count": cart_count,
@@ -592,7 +613,8 @@ def inject_globals():
         "pending_count": pending_count,
         "turnstile_enabled": turnstile_enabled(),
         "turnstile_site_key": config.TURNSTILE_SITE_KEY,
-        "firebase_auth_enabled": firebase_auth_enabled(),
+        "firebase_auth_enabled": _firebase_enabled,
+        "customer_auth_enabled": _firebase_enabled or _google_enabled or _backend_otp_enabled,
         "gis_enabled": bool(config.GOOGLE_CLIENT_ID),
         "google_client_id": config.GOOGLE_CLIENT_ID,
         "firebase_config": {
@@ -610,8 +632,8 @@ def inject_globals():
         "otp_dev_mode": config.OTP_DEV_MODE,
         "settings": _settings,
         "test_checkout_mode": str(_settings.get("test_checkout_mode", "false")).lower() == "true",
-        "checkout_available": (str(_settings.get("test_checkout_mode", "false")).lower() == "true") or rzp.is_configured(),
-        "payment_gateway_ready": str(_settings.get("test_checkout_mode", "false")).lower() != "true" and rzp.is_configured(),
+        "checkout_available": checkout_enabled() and ((str(_settings.get("test_checkout_mode", "false")).lower() == "true") or rzp.is_configured()),
+        "payment_gateway_ready": checkout_enabled() and str(_settings.get("test_checkout_mode", "false")).lower() != "true" and rzp.is_configured(),
         "testing_mode_active": str(_settings.get("test_checkout_mode", "false")).lower() == "true",
         "razorpay_configured": rzp.is_configured(),
         "static_version": os.environ.get("STATIC_VERSION", "14"),
@@ -975,6 +997,13 @@ def checkout_enabled():
         return str(get_settings().get("disable_payments", "false")).lower() != "true"
     except Exception:
         return True
+
+
+def customer_email_notifications_enabled():
+    """Whether configured customer email notifications are allowed by settings."""
+    return email_enabled() and str(
+        get_settings().get("auto_email_enabled", "true")
+    ).lower() != "false"
 
 
 def _delivery_speed_stat(conn, product_id):
@@ -1670,7 +1699,7 @@ def api_create_order():
             return jsonify({"error": "Could not start payment. Please try again."}), 502
         razorpay_order_id = rzp_order["id"]
 
-    conn.execute(
+    cur = conn.execute(
         """INSERT INTO orders
            (order_ref, product_id, product_name, customer_name, customer_email,
             customer_phone, amount, coupon_code, discount_amount, razorpay_order_id,
@@ -1680,15 +1709,25 @@ def api_create_order():
          final_amount, applied_code, discount_amount, razorpay_order_id,
          'created', db.now(), session.get("customer_id"), payment_mode, None),
     )
-    cur = conn.execute("SELECT * FROM orders WHERE order_ref = ?", (order_ref,))
-    order = cur.fetchone()
+    # Keep the single-product path aligned with cart orders.  Payment
+    # confirmation and downstream order/invoice code operate on order_items.
+    conn.execute(
+        """INSERT INTO order_items
+           (order_id, product_id, product_name, unit_price, quantity, line_total)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (cur.lastrowid, product["id"], product["name"], product["price"], 1, product["price"]),
+    )
+    order = conn.execute("SELECT * FROM orders WHERE order_ref = ?", (order_ref,)).fetchone()
+    order_items = conn.execute(
+        "SELECT * FROM order_items WHERE order_id = ?", (order["id"],)
+    ).fetchall()
     # Track abandoned cart contact info
     if "session_key" in session:
         track_cart_contact(session["session_key"], name, email, phone)
     conn.commit()
 
     if testing_mode:
-        _confirm_order_payment(conn, order, [], payment_mode="test")
+        _confirm_order_payment(conn, order, order_items, payment_mode="test")
         return jsonify({
             "test_mode": True,
             "payment_mode": "test",
@@ -2333,7 +2372,7 @@ def api_verify_payment():
 
 
 def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", razorpay_payment_id=None, razorpay_signature=None):
-    """Mark an order as paid, update coupon usage, optionally auto-deliver, and
+    """Mark an order as paid, issue file tokens, optionally auto-deliver, and
     trigger notifications. Returns the auto-delivery message when one is
     generated, otherwise None."""
     if not order:
@@ -2360,10 +2399,32 @@ def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", 
         except Exception:
             _startup_logger.exception("Coupon usage recording failed for order %s", order["order_ref"])
 
+    # Issue protected links as part of the confirmed-payment transaction. The
+    # helper is idempotent, so webhook/client retries cannot create duplicate
+    # tokens. Keep manual-delivery orders paid; admins can still paste these
+    # protected links into the delivery message when they deliver the order.
+    product_ids = [it["product_id"] for it in (order_items or []) if it["product_id"]]
+    if not product_ids and order["product_id"]:
+        product_ids = [order["product_id"]]
+    file_tokens = generate_download_tokens(conn, order["id"], product_ids)
+    token_lines = [
+        f"📎 {item['filename']}: {url_for('download_product', token=item['token'], _external=True)}"
+        for item in file_tokens
+    ]
+
     auto_message = None
     auto_deliver_enabled = str(get_settings().get("auto_deliver_enabled", "true")).lower() != "false"
     if auto_deliver_enabled:
         auto_message = _maybe_auto_deliver(conn, order, order_items)
+        # Only automatic-delivery products are marked delivered here. Manual
+        # orders still receive generated tokens, exposed to the admin detail
+        # page for later inclusion when the admin completes delivery.
+        if auto_message is not None and token_lines:
+            auto_message = (auto_message + "\n\n" if auto_message else "") + "\n".join(token_lines)
+            conn.execute(
+                "UPDATE orders SET delivery_message = ? WHERE id = ?",
+                (auto_message, order["id"]),
+            )
 
     paid_at = db.now()
     if auto_message is None:
@@ -2379,7 +2440,7 @@ def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", 
 
     # Deduct stock for each item — atomic with built-in oversell guard
     for item in (order_items or []):
-        if item.get("product_id"):
+        if item["product_id"]:
             conn.execute(
                 "UPDATE products SET quantity = quantity - ? WHERE id = ? AND quantity >= ?",
                 (item["quantity"], item["product_id"], item["quantity"]),
@@ -2393,7 +2454,7 @@ def _confirm_order_payment(conn, order, order_items, *, payment_mode="gateway", 
     except Exception:
         pass
 
-    if email_enabled():
+    if customer_email_notifications_enabled():
         try:
             item_line = order["product_name"] if not order_items else ", ".join(
                 f"{it['product_name']} x{it['quantity']}" for it in order_items
@@ -2570,6 +2631,10 @@ def track_order_resend(order_ref):
         flash("No delivery content available to resend for this order.", "error")
         return redirect(url_for("track_order"))
 
+    if not customer_email_notifications_enabled():
+        flash("Automatic customer emails are disabled in site settings.", "info")
+        return redirect(url_for("track_order", order_ref=order["order_ref"], email=order["customer_email"]))
+
     try:
         settings = get_settings()
         site_name = settings.get("site_name", "Virtual Store")
@@ -2667,19 +2732,21 @@ def auth_send_otp():
     if len(phone) < 8 or len(phone) > 16:
         return jsonify({"error": "That phone number doesn't look right. Please check and try again."}), 400
 
+    twilio_enabled = bool(
+        config.TWILIO_ACCOUNT_SID and
+        config.TWILIO_AUTH_TOKEN and
+        config.TWILIO_FROM_NUMBER
+    )
+    if not twilio_enabled and not config.OTP_DEV_MODE:
+        return jsonify({"error": "Phone sign-in isn't configured on this site yet."}), 503
+
     code = generate_otp_code()
     conn = db.get_db()
     store_otp(conn, phone, code)
     conn.commit()
     conn.close()
 
-    # --- Try Twilio first, fall back to dev mode ---
-    twilio_enabled = bool(
-        config.TWILIO_ACCOUNT_SID and
-        config.TWILIO_AUTH_TOKEN and
-        config.TWILIO_FROM_NUMBER
-    )
-
+    # --- Try Twilio first, or use explicit local dev mode ---
     if twilio_enabled:
         try:
             from twilio.rest import Client as TwilioClient
@@ -3273,15 +3340,22 @@ def download_product(token):
     if remaining <= 0:
         conn.close()
         return abort(410)
-    conn.execute(
-        "UPDATE download_tokens SET downloads_remaining = downloads_remaining - 1 WHERE id = ?",
-        (row["id"],),
-    )
-    conn.commit()
-    file_path = os.path.join(os.getcwd(), row["file_path"])
-    if not os.path.exists(file_path):
+    file_path = product_file_path(row["file_path"])
+    # Validate the private path and file before consuming a download. A stale
+    # token must not lose one of the customer's remaining downloads.
+    if not file_path or not os.path.isfile(file_path):
         conn.close()
         return abort(404)
+    updated = conn.execute(
+        """UPDATE download_tokens
+           SET downloads_remaining = downloads_remaining - 1
+           WHERE id = ? AND downloads_remaining > 0""",
+        (row["id"],),
+    )
+    if updated.rowcount != 1:
+        conn.close()
+        return abort(410)
+    conn.commit()
     conn.close()
     return send_file(file_path, as_attachment=True, download_name=row["filename"])
 
@@ -3303,7 +3377,7 @@ def api_newsletter_subscribe():
         )
         conn.commit()
         # Send welcome email with unsubscribe link
-        if email_enabled():
+        if customer_email_notifications_enabled():
             try:
                 site_name = get_settings().get("site_name", "Virtual Store")
                 unsub_url = url_for("newsletter_unsubscribe", email=email, _external=True)
@@ -4127,7 +4201,7 @@ def admin_product_stock_update(product_id):
         ).fetchall()
         for sr in pending:
             product = conn.execute("SELECT name, slug FROM products WHERE id = ?", (product_id,)).fetchone()
-            if product and email_enabled():
+            if product and customer_email_notifications_enabled():
                 try:
                     site = get_settings().get("site_name", "Virtual Store")
                     product_url = url_for("product_detail", slug=product["slug"], _external=True)
@@ -4402,7 +4476,10 @@ def admin_product_file_download(file_id):
     conn.close()
     if not f:
         abort(404)
-    return send_from_directory(config.UPLOAD_FOLDER, f["filename"], as_attachment=True, download_name=f["original_name"])
+    file_path = product_file_path(f["filename"])
+    if not file_path or not os.path.isfile(file_path):
+        abort(404)
+    return send_file(file_path, as_attachment=True, download_name=f["original_name"])
 
 
 @app.route("/admin/products/<int:file_id>/delete", methods=["POST"])
@@ -4561,8 +4638,15 @@ def admin_order_detail(order_id):
     product_files = []
     if product:
         product_files = conn.execute(
-            "SELECT id, original_name, filename FROM product_files WHERE product_id = ? ORDER BY id ASC",
-            (product["id"],),
+            """SELECT pf.id, pf.original_name, pf.filename,
+                      dt.token AS download_token
+               FROM product_files pf
+               LEFT JOIN download_tokens dt
+                 ON dt.order_id = ? AND dt.product_id = pf.product_id
+                AND dt.file_path = pf.filename
+              WHERE pf.product_id = ?
+              ORDER BY pf.id ASC""",
+            (order["id"], product["id"]),
         ).fetchall()
     conn.close()
     if not order:
@@ -4573,7 +4657,7 @@ def admin_order_detail(order_id):
 
 @app.route("/admin/orders/<int:order_id>/deliver", methods=["POST"])
 @login_required
-@requires_permission("orders.view")
+@requires_permission("orders.edit")
 def admin_order_deliver(order_id):
     check_csrf()
     message = request.form.get("delivery_message", "").strip()
@@ -4592,7 +4676,7 @@ def admin_order_deliver(order_id):
     conn.commit()
     conn.close()
 
-    if email_enabled():
+    if customer_email_notifications_enabled():
         item_line = order["product_name"] if not order_items else ", ".join(
             f"{it['product_name']} x{it['quantity']}" for it in order_items
         )
@@ -4605,13 +4689,13 @@ def admin_order_deliver(order_id):
             f"Order reference: {order['order_ref']}\n\nThank you for shopping with us.",
         )
     # SMS notification if customer phone available
-    if order.get("customer_phone") and twilio_enabled():
+    if order["customer_phone"] and twilio_enabled():
         try:
             send_sms(order["customer_phone"],
                      f"Your order {order['order_ref']} is ready! Check your email for details.")
         except Exception:
             pass
-    flash("✅ Order delivered! Customer has been notified." if email_enabled()
+    flash("✅ Order delivered! Customer has been notified." if customer_email_notifications_enabled()
           else "✅ Order marked as delivered. Share the details with the customer directly "
                "(email sending isn't set up).", "success")
     return redirect(url_for("admin_order_detail", order_id=order_id))
@@ -4713,7 +4797,7 @@ def admin_order_cancel(order_id):
 
 @app.route("/admin/orders/bulk-deliver", methods=["POST"])
 @login_required
-@requires_permission("orders.view")
+@requires_permission("orders.edit")
 def admin_orders_bulk_deliver():
     check_csrf()
     conn = db.get_db()
@@ -4900,7 +4984,8 @@ def admin_stock_request_notify(request_id):
         return redirect(url_for("admin_stock_requests"))
     subject = f"{req['pname']} is back in stock!"
     body = f"Hi {req['customer_name'] or 'there'},\n\nGood news — '{req['pname']}' is back in stock at {get_settings().get('site_name', 'our store')}!\n\nCheck it out: {request.url_root}product/{req['product_id']}"
-    send_email(req["customer_email"], subject, body)
+    if customer_email_notifications_enabled():
+        send_email(req["customer_email"], subject, body)
     conn.execute("UPDATE stock_requests SET notified = 1, notified_at = ? WHERE id = ?", (db.now(), request_id))
     conn.commit()
     conn.close()
@@ -4929,7 +5014,8 @@ def admin_stock_request_notify_all(product_id):
     for req in unotified:
         subject = f"{product['name']} is back in stock!"
         body = f"Hi {req['customer_name'] or 'there'},\n\nGood news — '{product['name']}' is back in stock at {site_name or 'our store'}!\n\nCheck it out: {product_url}"
-        send_email(req["customer_email"], subject, body)
+        if customer_email_notifications_enabled():
+            send_email(req["customer_email"], subject, body)
         conn.execute("UPDATE stock_requests SET notified = 1, notified_at = ? WHERE id = ?", (db.now(), req["id"]))
         count += 1
     conn.commit()
@@ -5718,9 +5804,22 @@ def health():
 
 @app.route("/healthz", methods=["GET", "HEAD"])
 def healthz():
-    """Lightweight health-check endpoint for Render health checks and future
-    monitoring."""
-    return "ok", 200
+    """Readiness check: verify the configured database can execute a query."""
+    conn = None
+    try:
+        db.init_db_if_needed()
+        conn = db.get_db()
+        conn.execute("SELECT 1").fetchone()
+        return "ok", 200
+    except Exception:
+        _startup_logger.exception("Health check database probe failed")
+        return "unhealthy", 503
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @app.route("/set-timezone", methods=["POST"])

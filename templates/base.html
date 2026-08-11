@@ -110,7 +110,7 @@
       <a href="{{ url_for('home') }}#products">Shop</a>
       <a href="{{ url_for('home') }}#about">About</a>
       <a href="{{ url_for('track_order') }}">Track</a>
-      <a href="#" onclick="openAuthModal(); return false;" data-auth-signed-out>Sign In</a>
+      {% if customer_auth_enabled %}<a href="#" onclick="openAuthModal(); return false;" data-auth-signed-out>Sign In</a>{% endif %}
       <form method="POST" action="{{ url_for('auth_logout') }}"
             data-auth-signed-in style="display:none">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -150,7 +150,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="nav__account-btn" data-logout-btn>Sign Out</button>
     </form>
-    <a href="#" onclick="openAuthModal(); return false;" class="mobile-menu__signin" data-auth-signed-out>Sign In / Sign Up</a>
+    {% if customer_auth_enabled %}<a href="#" onclick="openAuthModal(); return false;" class="mobile-menu__signin" data-auth-signed-out>Sign In / Sign Up</a>{% endif %}
   </div>
 </nav>
 
@@ -216,7 +216,7 @@
             <option value="MYR">RM MYR</option>
           </select>
         </div>
-        <span>{% if test_checkout_mode %}Testing mode active — orders still work{% elif razorpay_configured %}Secure checkout via Razorpay{% else %}Checkout temporarily disabled{% endif %}</span>
+        <span>{% if not checkout_available %}Checkout temporarily disabled{% elif test_checkout_mode %}Testing mode active — orders still work{% elif razorpay_configured %}Secure checkout via Razorpay{% else %}Checkout temporarily disabled{% endif %}</span>
       </div>
   </footer>
 <button class="back-to-top" id="backToTop" aria-label="Back to top" onclick="window.scrollTo({top:0,behavior:'smooth'})">
@@ -277,10 +277,10 @@
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
     <span>Account</span>
   </a>
-  <a href="#" onclick="openAuthModal(); return false;" class="bottom-nav__item" data-auth-signed-out>
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+  {% if customer_auth_enabled %}<a href="#" onclick="openAuthModal(); return false;" class="bottom-nav__item" data-auth-signed-out>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1 2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
     <span>Sign In</span>
-  </a>
+  </a>{% endif %}
 </nav>
 
 <!-- You're Caught Up — playful bottom scrolled-to-end indicator -->
